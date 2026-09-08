@@ -11,9 +11,28 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 
 import { useCategories } from '../../context/categories-context';
 import { useExpenses } from '../../context/expenses-context';
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function isFutureDate(date: Date) {
+  return startOfDay(date).getTime() > startOfDay(new Date()).getTime();
+}
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
 
 export default function AddExpenseScreen() {
   const { addExpense } = useExpenses();
@@ -25,8 +44,36 @@ export default function AddExpenseScreen() {
   const [categoryError, setCategoryError] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [transactionDate, setTransactionDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const amountInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  function setToday() {
+    setTransactionDate(new Date());
+  }
+
+  function setYesterday() {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    setTransactionDate(yesterday);
+  }
+
+  function handleDateChange(
+    _event: unknown,
+    selectedDate: Date
+  ) {
+    setTransactionDate(selectedDate);
+
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+  }
+
+  function handleDateDismiss() {
+    setShowDatePicker(false);
+  }
 
   async function handleSave() {
     const parsedAmount = Number(
@@ -64,6 +111,8 @@ export default function AddExpenseScreen() {
       return;
     }
 
+    const planned = isFutureDate(transactionDate);
+
     try {
       setSaving(true);
       setCategoryError(false);
@@ -72,19 +121,24 @@ export default function AddExpenseScreen() {
         description: description.trim(),
         amount: parsedAmount,
         categoryId,
-        transactionDate: new Date(),
-        status: 'completed',
+        transactionDate,
+        status: planned ? 'planned' : 'completed',
         source: 'manual',
       });
 
       setDescription('');
       setAmount('');
       setCategoryId(null);
+      setTransactionDate(new Date());
       setCategoryError(false);
 
       Alert.alert(
-        'Gasto guardado',
-        'El gasto se ha añadido correctamente.'
+        planned
+          ? 'Gasto previsto guardado'
+          : 'Gasto guardado',
+        planned
+          ? 'El gasto futuro se ha añadido correctamente.'
+          : 'El gasto se ha añadido correctamente.'
       );
     } catch (error) {
       console.error(
@@ -100,6 +154,8 @@ export default function AddExpenseScreen() {
       setSaving(false);
     }
   }
+
+  const planned = isFutureDate(transactionDate);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -187,11 +243,69 @@ export default function AddExpenseScreen() {
                     animated: true,
                   });
                 }, 100);
-              } else {
-                void handleSave();
               }
             }}
           />
+
+          <Text style={styles.sectionLabel}>
+            Fecha
+          </Text>
+
+          <View style={styles.quickDateRow}>
+            <TouchableOpacity
+              style={styles.quickDateButton}
+              onPress={setToday}
+            >
+              <Text style={styles.quickDateText}>
+                Hoy
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickDateButton}
+              onPress={setYesterday}
+            >
+              <Text style={styles.quickDateText}>
+                Ayer
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() =>
+                setShowDatePicker(true)
+              }
+            >
+              <Text style={styles.dateButtonText}>
+                {formatDate(transactionDate)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {planned && (
+            <View style={styles.plannedBanner}>
+              <Text style={styles.plannedTitle}>
+                Gasto previsto
+              </Text>
+
+              <Text style={styles.plannedText}>
+                Esta fecha está en el futuro. El gasto se guardará como previsto.
+              </Text>
+            </View>
+          )}
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={transactionDate}
+              mode="date"
+              display={
+                Platform.OS === 'ios'
+                  ? 'inline'
+                  : 'default'
+              }
+              onChange={handleDateChange}
+            />
+          )}
 
           <Text style={styles.categoryLabel}>
             Categoría *
@@ -249,7 +363,9 @@ export default function AddExpenseScreen() {
             <Text style={styles.manualButtonText}>
               {saving
                 ? 'Guardando...'
-                : 'Guardar gasto'}
+                : planned
+                  ? 'Guardar gasto previsto'
+                  : 'Guardar gasto'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -342,6 +458,71 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
+  sectionLabel: {
+    marginTop: 4,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+
+  quickDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+
+  quickDateButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+
+  quickDateText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+
+  dateButton: {
+    flexGrow: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+  },
+
+  dateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  plannedBanner: {
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFF7ED',
+  },
+
+  plannedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#9A3412',
+  },
+
+  plannedText: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#C2410C',
+  },
+
   categoryLabel: {
     marginTop: 4,
     marginBottom: 6,
@@ -406,3 +587,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
