@@ -1,30 +1,62 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useExpenses } from '../../context/expenses-context';
 
 export default function HomeScreen() {
+  const { expenses, total } = useExpenses();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>ExpenseTracker</Text>
-        <Text style={styles.subtitle}>Tus finanzas, entendidas en lenguaje natural</Text>
-      </View>
+        <Text style={styles.title}>
+          ExpenseTracker
+        </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Este mes</Text>
-
-        <Text style={styles.amount}>0,00 €</Text>
-
-        <Text style={styles.empty}>
-          Todavía no has registrado ningún gasto.
+        <Text style={styles.subtitle}>
+          Tus finanzas, entendidas en lenguaje natural
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>＋ Añadir gasto</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>
+          Este mes
+        </Text>
+
+        <Text style={styles.amount}>
+          {total.toFixed(2)} €
+        </Text>
+
+        <Text style={styles.summary}>
+          {expenses.length === 0
+            ? 'Todavía no has registrado ningún gasto.'
+            : `${expenses.length} ${
+                expenses.length === 1
+                  ? 'gasto registrado'
+                  : 'gastos registrados'
+              }`}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={() => router.push('/add')}
+      >
+        <Text style={styles.primaryButtonText}>
+          ＋ Añadir gasto
+        </Text>
       </TouchableOpacity>
 
       <View style={styles.aiCard}>
-        <Text style={styles.aiTitle}>✨ Añadir con IA</Text>
+        <Text style={styles.aiTitle}>
+          ✨ Añadir con IA
+        </Text>
+
         <Text style={styles.aiText}>
           "Ayer cené fuera y gasté 24 euros"
         </Text>
@@ -75,7 +107,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
-  empty: {
+  summary: {
     marginTop: 20,
     fontSize: 15,
     color: '#9CA3AF',

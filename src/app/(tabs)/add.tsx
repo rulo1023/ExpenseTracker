@@ -1,79 +1,180 @@
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useExpenses } from '../../context/expenses-context';
 
 export default function AddExpenseScreen() {
+  const { addExpense } = useExpenses();
+
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const amountInputRef = useRef<TextInput>(null);
+
+  function handleSave() {
+    const parsedAmount = Number(amount.replace(',', '.'));
+
+    if (!description.trim()) {
+      Alert.alert(
+        'Falta la descripción',
+        'Introduce una descripción para el gasto.'
+      );
+      return;
+    }
+
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert(
+        'Importe incorrecto',
+        'Introduce un importe válido.'
+      );
+      return;
+    }
+
+    addExpense(description.trim(), parsedAmount);
+
+    setDescription('');
+    setAmount('');
+
+    Alert.alert(
+      'Gasto guardado',
+      'El gasto se ha añadido correctamente.'
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Añadir gasto</Text>
-      <Text style={styles.subtitle}>
-        Escríbelo como quieras.
-      </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.title}>Añadir gasto</Text>
 
-      <View style={styles.aiCard}>
-        <Text style={styles.aiLabel}>✨ Introducir con lenguaje natural</Text>
+          <Text style={styles.subtitle}>
+            Escríbelo como quieras.
+          </Text>
 
-        <TextInput
-          style={styles.textArea}
-          multiline
-          placeholder="Ej: Ayer cené fuera y gasté 24 euros"
-          placeholderTextColor="#9CA3AF"
-        />
+          <View style={styles.aiCard}>
+            <Text style={styles.aiLabel}>
+              ✨ Introducir con lenguaje natural
+            </Text>
 
-        <TouchableOpacity style={styles.aiButton}>
-          <Text style={styles.aiButtonText}>Interpretar gasto</Text>
-        </TouchableOpacity>
-      </View>
+            <TextInput
+              style={styles.textArea}
+              multiline
+              placeholder="Ej: Ayer cené fuera y gasté 24 euros"
+              placeholderTextColor="#9CA3AF"
+              cursorColor="#4F46E5"
+              selectionColor="#C7D2FE"
+            />
 
-      <Text style={styles.separator}>o introduce los datos manualmente</Text>
+            <TouchableOpacity style={styles.aiButton}>
+              <Text style={styles.aiButtonText}>
+                Interpretar gasto
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Descripción"
-        placeholderTextColor="#9CA3AF"
-      />
+          <Text style={styles.separator}>
+            o introduce los datos manualmente
+          </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Importe"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="decimal-pad"
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="Descripción"
+            placeholderTextColor="#9CA3AF"
+            value={description}
+            onChangeText={setDescription}
+            cursorColor="#111827"
+            selectionColor="#D1D5DB"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => amountInputRef.current?.focus()}
+          />
 
-      <TouchableOpacity style={styles.manualButton}>
-        <Text style={styles.manualButtonText}>Guardar gasto</Text>
-      </TouchableOpacity>
+          <TextInput
+            ref={amountInputRef}
+            style={styles.input}
+            placeholder="Importe"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="decimal-pad"
+            value={amount}
+            onChangeText={setAmount}
+            cursorColor="#111827"
+            selectionColor="#D1D5DB"
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+          />
+
+          <TouchableOpacity
+            style={styles.manualButton}
+            onPress={handleSave}
+          >
+            <Text style={styles.manualButtonText}>
+              Guardar gasto
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',
-    paddingHorizontal: 20,
   },
+
+  keyboardView: {
+    flex: 1,
+  },
+
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+
   title: {
     marginTop: 12,
     fontSize: 30,
     fontWeight: '700',
     color: '#111827',
   },
+
   subtitle: {
     marginTop: 6,
     fontSize: 15,
     color: '#6B7280',
   },
+
   aiCard: {
     marginTop: 26,
     backgroundColor: '#EEF2FF',
     borderRadius: 20,
     padding: 20,
   },
+
   aiLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#3730A3',
   },
+
   textArea: {
     marginTop: 14,
     minHeight: 110,
@@ -84,6 +185,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     color: '#111827',
   },
+
   aiButton: {
     marginTop: 14,
     paddingVertical: 15,
@@ -91,17 +193,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#4F46E5',
   },
+
   aiButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 15,
   },
+
   separator: {
     marginVertical: 24,
     textAlign: 'center',
     color: '#9CA3AF',
     fontSize: 14,
   },
+
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
@@ -111,6 +216,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: '#111827',
   },
+
   manualButton: {
     marginTop: 4,
     paddingVertical: 16,
@@ -118,6 +224,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#111827',
   },
+
   manualButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
