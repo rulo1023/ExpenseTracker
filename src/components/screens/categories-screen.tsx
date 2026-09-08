@@ -21,38 +21,154 @@ import {
 
 const COLORS = [
   '#EF4444',
-  '#F97316',
-  '#F59E0B',
-  '#22C55E',
-  '#14B8A6',
-  '#06B6D4',
-  '#3B82F6',
-  '#6366F1',
-  '#8B5CF6',
-  '#A855F7',
+  '#DC2626',
+  '#F43F5E',
+  '#E11D48',
   '#EC4899',
+  '#DB2777',
+  '#F472B6',
+  '#F97316',
+  '#EA580C',
+  '#FB923C',
+  '#F59E0B',
+  '#EAB308',
+  '#FACC15',
+  '#84CC16',
+  '#22C55E',
+  '#16A34A',
+  '#10B981',
+  '#059669',
+  '#14B8A6',
+  '#0D9488',
+  '#06B6D4',
+  '#38BDF8',
+  '#0EA5E9',
+  '#0284C7',
+  '#3B82F6',
+  '#2563EB',
+  '#1D4ED8',
+  '#6366F1',
+  '#4F46E5',
+  '#4338CA',
+  '#8B5CF6',
+  '#7C3AED',
+  '#6D28D9',
+  '#A855F7',
+  '#C026D3',
+  '#D946EF',
+  '#78716C',
   '#64748B',
+  '#475569',
+  '#6B7280',
+  '#94A3B8',
+  '#374151',
 ];
 
 const ICONS = [
-  'basket-outline',
+  // General
+  'pricetag-outline',
+  'bookmark-outline',
+  'star-outline',
+  'heart-outline',
+  'sparkles-outline',
+  'ellipsis-horizontal-circle-outline',
+
+  // Comida y bebida
   'restaurant-outline',
+  'fast-food-outline',
   'cafe-outline',
+  'beer-outline',
+  'wine-outline',
+  'nutrition-outline',
+  'basket-outline',
+  'cart-outline',
+
+  // Transporte y viajes
   'car-outline',
   'bus-outline',
+  'train-outline',
+  'subway-outline',
   'airplane-outline',
+  'bicycle-outline',
+  'walk-outline',
+  'navigate-outline',
+  'map-outline',
+  'location-outline',
+
+  // Casa
   'home-outline',
-  'game-controller-outline',
-  'fitness-outline',
-  'medical-outline',
-  'gift-outline',
-  'school-outline',
-  'briefcase-outline',
-  'paw-outline',
-  'sparkles-outline',
-  'shirt-outline',
+  'bed-outline',
+  'bulb-outline',
+  'water-outline',
+  'flame-outline',
+  'key-outline',
+  'construct-outline',
+
+  // Tecnología
+  'laptop-outline',
+  'desktop-outline',
   'phone-portrait-outline',
+  'headset-outline',
+  'game-controller-outline',
+  'camera-outline',
+  'wifi-outline',
+  'cloud-outline',
+
+  // Dinero
   'card-outline',
+  'cash-outline',
+  'wallet-outline',
+  'receipt-outline',
+  'calculator-outline',
+  'trending-up-outline',
+  'trending-down-outline',
+
+  // Compras
+  'shirt-outline',
+  'bag-outline',
+  'gift-outline',
+  'diamond-outline',
+
+  // Salud y deporte
+  'medkit-outline',
+  'medical-outline',
+  'fitness-outline',
+  'barbell-outline',
+  'body-outline',
+  'football-outline',
+  'basketball-outline',
+  'tennisball-outline',
+
+  // Trabajo y estudios
+  'briefcase-outline',
+  'school-outline',
+  'book-outline',
+  'library-outline',
+  'document-text-outline',
+  'pencil-outline',
+
+  // Ocio y cultura
+  'musical-notes-outline',
+  'film-outline',
+  'ticket-outline',
+  'color-palette-outline',
+  'mic-outline',
+
+  // Personas
+  'people-outline',
+  'person-outline',
+  'happy-outline',
+
+  // Otros
+  'cube-outline',
+  'cut-outline',
+  'paw-outline',
+  'leaf-outline',
+  'flower-outline',
+  'earth-outline',
+  'calendar-outline',
+  'time-outline',
+  'repeat-outline',
 ] as const;
 
 export default function CategoriesScreen() {
@@ -776,3 +892,4 @@ const styles =
       fontWeight: '600',
     },
   });
+

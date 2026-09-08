@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "ExpenseTracker",
     "slug": "ExpenseTracker",
@@ -8,11 +8,21 @@
     "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-router",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b8982fe-7dc4-4150-b51d-5355bd0b5f1d"
+      }
+    },
+    "android": {
+      "package": "com.rulo1023.ExpenseTracker"
     }
   }
 }
