@@ -12,16 +12,38 @@ export type Category = {
   id: string;
   name: string;
   description: string;
+  icon: string;
+  color: string;
   createdAt: Date;
+};
+
+type CategoryInput = {
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
 };
 
 type CategoriesContextType = {
   categories: Category[];
   loading: boolean;
+
   addCategory: (
     name: string,
-    description: string
+    description: string,
+    icon?: string,
+    color?: string
   ) => Promise<void>;
+
+  updateCategory: (
+    id: string,
+    input: CategoryInput
+  ) => Promise<void>;
+
+  deleteCategory: (
+    id: string
+  ) => Promise<void>;
+
   getCategoryById: (
     id: string | null
   ) => Category | undefined;
@@ -37,18 +59,40 @@ const defaultCategories = [
     name: 'Compra',
     description:
       'Supermercado, alimentación y productos habituales para casa.',
+    icon: 'basket-outline',
+    color: '#22C55E',
   },
   {
     name: 'Caprichos',
     description:
       'Comidas, compras y pequeños gastos fuera de la rutina.',
+    icon: 'sparkles-outline',
+    color: '#F97316',
   },
   {
     name: 'Ocio',
     description:
       'Actividades y gastos destinados principalmente al entretenimiento.',
+    icon: 'game-controller-outline',
+    color: '#8B5CF6',
   },
 ];
+
+function mapCategory(row: any): Category {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    icon:
+      row.icon ??
+      'pricetag-outline',
+    color:
+      row.color ??
+      '#6366F1',
+    createdAt:
+      new Date(row.created_at),
+  };
+}
 
 export function CategoriesProvider({
   children,
@@ -69,7 +113,7 @@ export function CategoriesProvider({
       return;
     }
 
-    loadCategories();
+    void loadCategories();
   }, [user?.id]);
 
   async function loadCategories() {
@@ -86,10 +130,16 @@ export function CategoriesProvider({
       } = await supabase
         .from('categories')
         .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', {
-          ascending: true,
-        });
+        .eq(
+          'user_id',
+          user.id
+        )
+        .order(
+          'created_at',
+          {
+            ascending: true,
+          }
+        );
 
       if (error) {
         throw error;
@@ -104,10 +154,9 @@ export function CategoriesProvider({
           .insert(
             defaultCategories.map(
               (category) => ({
-                user_id: user.id,
-                name: category.name,
-                description:
-                  category.description,
+                user_id:
+                  user.id,
+                ...category,
               })
             )
           )
@@ -119,15 +168,7 @@ export function CategoriesProvider({
 
         setCategories(
           (inserted ?? []).map(
-            (category) => ({
-              id: category.id,
-              name: category.name,
-              description:
-                category.description,
-              createdAt: new Date(
-                category.created_at
-              ),
-            })
+            mapCategory
           )
         );
 
@@ -135,15 +176,7 @@ export function CategoriesProvider({
       }
 
       setCategories(
-        data.map((category) => ({
-          id: category.id,
-          name: category.name,
-          description:
-            category.description,
-          createdAt: new Date(
-            category.created_at
-          ),
-        }))
+        data.map(mapCategory)
       );
     } catch (error) {
       console.error(
@@ -157,7 +190,9 @@ export function CategoriesProvider({
 
   async function addCategory(
     name: string,
-    description: string
+    description: string,
+    icon = 'pricetag-outline',
+    color = '#6366F1'
   ) {
     if (!user) {
       throw new Error(
@@ -175,6 +210,8 @@ export function CategoriesProvider({
         name: name.trim(),
         description:
           description.trim(),
+        icon,
+        color,
       })
       .select()
       .single();
@@ -183,19 +220,92 @@ export function CategoriesProvider({
       throw error;
     }
 
-    const category: Category = {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      createdAt: new Date(
-        data.created_at
-      ),
-    };
+    setCategories(
+      (current) => [
+        ...current,
+        mapCategory(data),
+      ]
+    );
+  }
 
-    setCategories((current) => [
-      ...current,
-      category,
-    ]);
+  async function updateCategory(
+    id: string,
+    input: CategoryInput
+  ) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('categories')
+      .update({
+        name:
+          input.name.trim(),
+        description:
+          input.description.trim(),
+        icon:
+          input.icon,
+        color:
+          input.color,
+      })
+      .eq('id', id)
+      .eq(
+        'user_id',
+        user.id
+      )
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setCategories(
+      (current) =>
+        current.map(
+          (category) =>
+            category.id === id
+              ? mapCategory(data)
+              : category
+        )
+    );
+  }
+
+  async function deleteCategory(
+    id: string
+  ) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const { error } =
+      await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
+        .eq(
+          'user_id',
+          user.id
+        );
+
+    if (error) {
+      throw error;
+    }
+
+    setCategories(
+      (current) =>
+        current.filter(
+          (category) =>
+            category.id !== id
+        )
+    );
   }
 
   function getCategoryById(
@@ -206,7 +316,8 @@ export function CategoriesProvider({
     }
 
     return categories.find(
-      (category) => category.id === id
+      (category) =>
+        category.id === id
     );
   }
 
@@ -216,6 +327,8 @@ export function CategoriesProvider({
         categories,
         loading,
         addCategory,
+        updateCategory,
+        deleteCategory,
         getCategoryById,
       }}
     >
@@ -226,7 +339,9 @@ export function CategoriesProvider({
 
 export function useCategories() {
   const context =
-    useContext(CategoriesContext);
+    useContext(
+      CategoriesContext
+    );
 
   if (!context) {
     throw new Error(

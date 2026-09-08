@@ -30,7 +30,7 @@ export type Expense = {
   createdAt: Date;
 };
 
-type NewExpenseInput = {
+export type ExpenseInput = {
   description: string;
   amount: number;
   categoryId: string;
@@ -42,9 +42,20 @@ type NewExpenseInput = {
 type ExpensesContextType = {
   expenses: Expense[];
   loading: boolean;
+
   addExpense: (
-    expense: NewExpenseInput
+    expense: ExpenseInput
   ) => Promise<void>;
+
+  updateExpense: (
+    id: string,
+    expense: ExpenseInput
+  ) => Promise<void>;
+
+  deleteExpense: (
+    id: string
+  ) => Promise<void>;
+
   total: number;
 };
 
@@ -52,6 +63,23 @@ const ExpensesContext =
   createContext<ExpensesContextType | undefined>(
     undefined
   );
+
+function mapExpense(row: any): Expense {
+  return {
+    id: row.id,
+    description: row.description,
+    amount: Number(row.amount),
+    categoryId: row.category_id,
+    transactionDate:
+      new Date(row.transaction_date),
+    status:
+      row.status as ExpenseStatus,
+    source:
+      row.source as ExpenseSource,
+    createdAt:
+      new Date(row.created_at),
+  };
+}
 
 export function ExpensesProvider({
   children,
@@ -72,7 +100,7 @@ export function ExpensesProvider({
       return;
     }
 
-    loadExpenses();
+    void loadExpenses();
   }, [user?.id]);
 
   async function loadExpenses() {
@@ -90,9 +118,12 @@ export function ExpensesProvider({
         .from('expenses')
         .select('*')
         .eq('user_id', user.id)
-        .order('transaction_date', {
-          ascending: false,
-        });
+        .order(
+          'transaction_date',
+          {
+            ascending: false,
+          }
+        );
 
       if (error) {
         throw error;
@@ -100,28 +131,7 @@ export function ExpensesProvider({
 
       setExpenses(
         (data ?? []).map(
-          (expense) => ({
-            id: expense.id,
-            description:
-              expense.description,
-            amount: Number(
-              expense.amount
-            ),
-            categoryId:
-              expense.category_id,
-            transactionDate:
-              new Date(
-                expense.transaction_date
-              ),
-            status:
-              expense.status as ExpenseStatus,
-            source:
-              expense.source as ExpenseSource,
-            createdAt:
-              new Date(
-                expense.created_at
-              ),
-          })
+          mapExpense
         )
       );
     } catch (error) {
@@ -141,7 +151,7 @@ export function ExpensesProvider({
     transactionDate = new Date(),
     status = 'completed',
     source = 'manual',
-  }: NewExpenseInput) {
+  }: ExpenseInput) {
     if (!user) {
       throw new Error(
         'User is not authenticated'
@@ -172,46 +182,117 @@ export function ExpensesProvider({
       throw error;
     }
 
-    const expense: Expense = {
-      id: data.id,
-      description:
-        data.description,
-      amount: Number(data.amount),
-      categoryId:
-        data.category_id,
-      transactionDate:
-        new Date(
-          data.transaction_date
-        ),
-      status:
-        data.status as ExpenseStatus,
-      source:
-        data.source as ExpenseSource,
-      createdAt:
-        new Date(data.created_at),
-    };
-
-    setExpenses((current) => [
-      expense,
-      ...current,
-    ]);
+    setExpenses(
+      (current) => [
+        mapExpense(data),
+        ...current,
+      ]
+    );
   }
 
-  const total = useMemo(
-    () =>
-      expenses
-        .filter(
+  async function updateExpense(
+    id: string,
+    {
+      description,
+      amount,
+      categoryId,
+      transactionDate = new Date(),
+      status = 'completed',
+      source = 'manual',
+    }: ExpenseInput
+  ) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('expenses')
+      .update({
+        category_id: categoryId,
+        description:
+          description.trim(),
+        amount,
+        transaction_date:
+          transactionDate.toISOString(),
+        status,
+        source,
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setExpenses(
+      (current) =>
+        current
+          .map((expense) =>
+            expense.id === id
+              ? mapExpense(data)
+              : expense
+          )
+          .sort(
+            (a, b) =>
+              b.transactionDate.getTime() -
+              a.transactionDate.getTime()
+          )
+    );
+  }
+
+  async function deleteExpense(
+    id: string
+  ) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const { error } =
+      await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+    if (error) {
+      throw error;
+    }
+
+    setExpenses(
+      (current) =>
+        current.filter(
           (expense) =>
-            expense.status ===
-            'completed'
+            expense.id !== id
         )
-        .reduce(
-          (sum, expense) =>
-            sum + expense.amount,
-          0
-        ),
-    [expenses]
-  );
+    );
+  }
+
+  const total =
+    useMemo(
+      () =>
+        expenses
+          .filter(
+            (expense) =>
+              expense.status ===
+              'completed'
+          )
+          .reduce(
+            (sum, expense) =>
+              sum +
+              expense.amount,
+            0
+          ),
+      [expenses]
+    );
 
   return (
     <ExpensesContext.Provider
@@ -219,6 +300,8 @@ export function ExpensesProvider({
         expenses,
         loading,
         addExpense,
+        updateExpense,
+        deleteExpense,
         total,
       }}
     >
@@ -229,7 +312,9 @@ export function ExpensesProvider({
 
 export function useExpenses() {
   const context =
-    useContext(ExpensesContext);
+    useContext(
+      ExpensesContext
+    );
 
   if (!context) {
     throw new Error(

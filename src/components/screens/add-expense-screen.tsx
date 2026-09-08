@@ -80,14 +80,6 @@ export default function AddExpenseScreen() {
       amount.replace(',', '.')
     );
 
-    if (!description.trim()) {
-      Alert.alert(
-        'Falta la descripción',
-        'Introduce una descripción para el gasto.'
-      );
-      return;
-    }
-
     if (
       Number.isNaN(parsedAmount) ||
       parsedAmount <= 0
@@ -587,5 +579,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
 
 

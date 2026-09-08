@@ -1,446 +1,782 @@
-﻿import {
+﻿import DateTimePicker from '@expo/ui/community/datetime-picker';
+import { useState } from 'react';
+import {
+  Alert,
+  Modal,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCategories } from '../../context/categories-context';
 import {
   Expense,
   useExpenses,
 } from '../../context/expenses-context';
+import { useCategories } from '../../context/categories-context';
 
-type ExpenseSection = {
-  key: string;
-  title: string;
-  date: Date;
-  total: number;
-  planned: boolean;
-  data: Expense[];
-};
+function startOfDay(
+  date: Date
+) {
+  const result =
+    new Date(date);
 
-function startOfDay(date: Date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
+  result.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
   return result;
 }
 
-function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+function formatMoney(
+  value: number
+) {
+  return new Intl.NumberFormat(
+    'es-ES',
+    {
+      style: 'currency',
+      currency: 'EUR',
+    }
+  ).format(value);
 }
 
-function formatSectionTitle(date: Date) {
-  const today = startOfDay(new Date());
+function formatDate(
+  date: Date
+) {
+  return new Intl.DateTimeFormat(
+    'es-ES',
+    {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }
+  ).format(date);
+}
 
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+function sectionTitle(
+  date: Date
+) {
+  const today =
+    startOfDay(
+      new Date()
+    );
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const yesterday =
+    new Date(today);
 
-  if (sameDay(date, today)) {
+  yesterday.setDate(
+    yesterday.getDate() -
+      1
+  );
+
+  if (
+    date.getTime() ===
+    today.getTime()
+  ) {
     return 'Hoy';
   }
 
-  if (sameDay(date, yesterday)) {
+  if (
+    date.getTime() ===
+    yesterday.getTime()
+  ) {
     return 'Ayer';
   }
 
-  if (sameDay(date, tomorrow)) {
-    return 'Mañana';
-  }
-
-  return new Intl.DateTimeFormat('es-ES', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year:
-      date.getFullYear() !== today.getFullYear()
-        ? 'numeric'
-        : undefined,
-  }).format(date);
-}
-
-function formatAmount(amount: number) {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(amount);
-}
-
-function buildSections(expenses: Expense[]): ExpenseSection[] {
-  const grouped = new Map<
-    string,
+  return new Intl.DateTimeFormat(
+    'es-ES',
     {
-      date: Date;
-      expenses: Expense[];
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
     }
-  >();
-
-  expenses.forEach((expense) => {
-    const date = startOfDay(expense.transactionDate);
-
-    const key = [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, '0'),
-      String(date.getDate()).padStart(2, '0'),
-    ].join('-');
-
-    const current = grouped.get(key);
-
-    if (current) {
-      current.expenses.push(expense);
-    } else {
-      grouped.set(key, {
-        date,
-        expenses: [expense],
-      });
-    }
-  });
-
-  return Array.from(grouped.entries())
-    .map(([key, group]) => {
-      const sortedExpenses = [...group.expenses].sort(
-        (a, b) =>
-          b.transactionDate.getTime() -
-          a.transactionDate.getTime()
-      );
-
-      const total = sortedExpenses.reduce(
-        (sum, expense) =>
-          sum + expense.amount,
-        0
-      );
-
-      return {
-        key,
-        title: formatSectionTitle(group.date),
-        date: group.date,
-        total,
-        planned:
-          group.date.getTime() >
-          startOfDay(new Date()).getTime(),
-        data: sortedExpenses,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.date.getTime() - a.date.getTime()
-    );
+  ).format(date);
 }
 
 export default function TransactionsScreen() {
-  const { expenses, loading } = useExpenses();
-  const { getCategoryById } = useCategories();
+  const {
+    expenses,
+    updateExpense,
+    deleteExpense,
+  } = useExpenses();
 
-  const sections = buildSections(expenses);
+  const {
+    categories,
+    getCategoryById,
+  } = useCategories();
+
+  const [
+    editing,
+    setEditing,
+  ] =
+    useState<Expense | null>(
+      null
+    );
+
+  const [
+    description,
+    setDescription,
+  ] =
+    useState('');
+
+  const [amount, setAmount] =
+    useState('');
+
+  const [
+    categoryId,
+    setCategoryId,
+  ] =
+    useState('');
+
+  const [
+    transactionDate,
+    setTransactionDate,
+  ] =
+    useState(new Date());
+
+  const [
+    showDatePicker,
+    setShowDatePicker,
+  ] =
+    useState(false);
+
+  function openExpense(
+    expense: Expense
+  ) {
+    setEditing(expense);
+    setDescription(
+      expense.description
+    );
+    setAmount(
+      expense.amount.toString()
+    );
+    setCategoryId(
+      expense.categoryId
+    );
+    setTransactionDate(
+      expense.transactionDate
+    );
+  }
+
+  async function saveExpense() {
+    if (!editing) {
+      return;
+    }
+
+    const parsed =
+      Number(
+        amount.replace(
+          ',',
+          '.'
+        )
+      );
+
+    if (
+      !categoryId ||
+      !parsed ||
+      parsed <= 0
+    ) {
+      Alert.alert(
+        'Datos incompletos',
+        'Revisa descripción, importe y categoría.'
+      );
+
+      return;
+    }
+
+    const future =
+      startOfDay(
+        transactionDate
+      ).getTime() >
+      startOfDay(
+        new Date()
+      ).getTime();
+
+    try {
+      await updateExpense(
+        editing.id,
+        {
+          description,
+          amount: parsed,
+          categoryId,
+          transactionDate,
+          status:
+            future
+              ? 'planned'
+              : 'completed',
+          source:
+            editing.source,
+        }
+      );
+
+      setEditing(null);
+    } catch {
+      Alert.alert(
+        'Error',
+        'No se pudo actualizar el gasto.'
+      );
+    }
+  }
+
+  function confirmDelete() {
+    if (!editing) {
+      return;
+    }
+
+    Alert.alert(
+      'Eliminar gasto',
+      '¿Seguro que quieres eliminar este gasto?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress:
+            async () => {
+              await deleteExpense(
+                editing.id
+              );
+
+              setEditing(
+                null
+              );
+            },
+        },
+      ]
+    );
+  }
+
+  const grouped =
+    new Map<
+      string,
+      Expense[]
+    >();
+
+  expenses.forEach(
+    (expense) => {
+      const date =
+        startOfDay(
+          expense.transactionDate
+        );
+
+      const key =
+        date.toISOString();
+
+      grouped.set(
+        key,
+        [
+          ...(grouped.get(
+            key
+          ) ?? []),
+          expense,
+        ]
+      );
+    }
+  );
+
+  const sections =
+    Array.from(
+      grouped.entries()
+    )
+      .map(
+        ([key, data]) => ({
+          title:
+            sectionTitle(
+              new Date(key)
+            ),
+          date:
+            new Date(key),
+          data,
+        })
+      )
+      .sort(
+        (a, b) =>
+          b.date.getTime() -
+          a.date.getTime()
+      );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>
+    <SafeAreaView
+      style={styles.container}
+    >
+      <Text
+        style={styles.title}
+      >
         Movimientos
       </Text>
 
-      <Text style={styles.subtitle}>
-        Todos tus gastos registrados.
+      <Text
+        style={styles.subtitle}
+      >
+        Toca cualquier gasto para editarlo.
       </Text>
 
-      {loading && expenses.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>
-            Cargando movimientos...
+      <SectionList
+        sections={sections}
+        keyExtractor={
+          (item) =>
+            item.id
+        }
+        contentContainerStyle={
+          styles.list
+        }
+        stickySectionHeadersEnabled={
+          false
+        }
+        renderSectionHeader={({
+          section,
+        }) => (
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            {section.title}
           </Text>
-        </View>
-      ) : expenses.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyIcon}>
-            $
-          </Text>
+        )}
+        renderItem={({
+          item,
+        }) => {
+          const category =
+            getCategoryById(
+              item.categoryId
+            );
 
-          <Text style={styles.emptyTitle}>
-            Sin movimientos
-          </Text>
+          return (
+            <TouchableOpacity
+              style={[
+                styles.card,
+                item.status ===
+                  'planned' &&
+                  styles.cardPlanned,
+              ]}
+              onPress={() =>
+                openExpense(
+                  item
+                )
+              }
+            >
+              <View
+                style={{
+                  flex: 1,
+                }}
+              >
+                <Text
+                  style={
+                    styles.description
+                  }
+                >
+                  {
+                    item.description
+                  }
+                </Text>
 
-          <Text style={styles.emptyText}>
-            Cuando añadas tu primer gasto aparecerá aquí.
-          </Text>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          stickySectionHeadersEnabled={false}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <View>
-                <View style={styles.sectionTitleRow}>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      section.planned &&
-                        styles.sectionTitlePlanned,
-                    ]}
-                  >
-                    {section.title}
-                  </Text>
-
-                  {section.planned && (
-                    <View style={styles.plannedBadge}>
-                      <Text style={styles.plannedBadgeText}>
-                        PREVISTO
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <Text style={styles.sectionCount}>
-                  {section.data.length}{' '}
-                  {section.data.length === 1
-                    ? 'movimiento'
-                    : 'movimientos'}
+                <Text
+                  style={[
+                    styles.category,
+                    {
+                      color:
+                        category?.color ??
+                        '#6366F1',
+                    },
+                  ]}
+                >
+                  {category?.name ??
+                    'Sin categoría'}
                 </Text>
               </View>
 
               <Text
-                style={[
-                  styles.sectionTotal,
-                  section.planned &&
-                    styles.sectionTotalPlanned,
-                ]}
+                style={
+                  styles.amount
+                }
               >
-                {formatAmount(section.total)}
+                {formatMoney(
+                  item.amount
+                )}
               </Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
+      <Modal
+        visible={
+          editing !== null
+        }
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() =>
+          setEditing(null)
+        }
+      >
+        <SafeAreaView
+          style={
+            styles.modalSafe
+          }
+        >
+          <ScrollView
+            contentContainerStyle={
+              styles.modalContent
+            }
+          >
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              Editar gasto
+            </Text>
+
+            <Text style={styles.label}>
+              Descripción
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              value={description}
+              onChangeText={
+                setDescription
+              }
+            />
+
+            <Text style={styles.label}>
+              Importe
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              value={amount}
+              onChangeText={
+                setAmount
+              }
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.label}>
+              Fecha
+            </Text>
+
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() =>
+                setShowDatePicker(
+                  true
+                )
+              }
+            >
+              <Text>
+                {formatDate(
+                  transactionDate
+                )}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={
+                  transactionDate
+                }
+                mode="date"
+                presentation="dialog"
+                onValueChange={(
+                  _event,
+                  value
+                ) => {
+                  setTransactionDate(
+                    value
+                  );
+
+                  setShowDatePicker(
+                    false
+                  );
+                }}
+                onDismiss={() =>
+                  setShowDatePicker(
+                    false
+                  )
+                }
+              />
+            )}
+
+            <Text style={styles.label}>
+              Categoría
+            </Text>
+
+            <View
+              style={
+                styles.categoryList
+              }
+            >
+              {categories.map(
+                (category) => {
+                  const selected =
+                    category.id ===
+                    categoryId;
+
+                  return (
+                    <TouchableOpacity
+                      key={
+                        category.id
+                      }
+                      style={[
+                        styles.categoryChip,
+                        selected && {
+                          backgroundColor:
+                            category.color,
+                          borderColor:
+                            category.color,
+                        },
+                      ]}
+                      onPress={() =>
+                        setCategoryId(
+                          category.id
+                        )
+                      }
+                    >
+                      <Text
+                        style={{
+                          color:
+                            selected
+                              ? '#FFFFFF'
+                              : '#374151',
+                          fontWeight:
+                            '600',
+                        }}
+                      >
+                        {
+                          category.name
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+              )}
             </View>
-          )}
-          renderItem={({ item }) => {
-            const category =
-              getCategoryById(item.categoryId);
 
-            const planned =
-              item.status === 'planned';
-
-            return (
-              <View
-                style={[
-                  styles.transactionCard,
-                  planned &&
-                    styles.transactionCardPlanned,
-                ]}
+            <TouchableOpacity
+              style={
+                styles.saveButton
+              }
+              onPress={() => {
+                void saveExpense();
+              }}
+            >
+              <Text
+                style={
+                  styles.saveText
+                }
               >
-                <View style={styles.transactionInfo}>
-                  <Text style={styles.description}>
-                    {item.description}
-                  </Text>
+                Guardar cambios
+              </Text>
+            </TouchableOpacity>
 
-                  <View style={styles.metadataRow}>
-                    <Text style={styles.category}>
-                      {category?.name ??
-                        'Sin categoría'}
-                    </Text>
+            <TouchableOpacity
+              style={
+                styles.deleteButton
+              }
+              onPress={
+                confirmDelete
+              }
+            >
+              <Text
+                style={
+                  styles.deleteText
+                }
+              >
+                Eliminar gasto
+              </Text>
+            </TouchableOpacity>
 
-                    {planned && (
-                      <>
-                        <Text style={styles.dot}>
-                          ·
-                        </Text>
-
-                        <Text style={styles.plannedText}>
-                          Previsto
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </View>
-
-                <Text
-                  style={[
-                    styles.amount,
-                    planned &&
-                      styles.amountPlanned,
-                  ]}
-                >
-                  {formatAmount(item.amount)}
-                </Text>
-              </View>
-            );
-          }}
-        />
-      )}
+            <TouchableOpacity
+              style={
+                styles.closeButton
+              }
+              onPress={() =>
+                setEditing(null)
+              }
+            >
+              <Text>
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-    paddingHorizontal: 20,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        '#F6F7F9',
+      paddingHorizontal:
+        20,
+    },
 
-  title: {
-    marginTop: 12,
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#111827',
-  },
+    title: {
+      marginTop: 12,
+      fontSize: 30,
+      fontWeight: '700',
+      color: '#111827',
+    },
 
-  subtitle: {
-    marginTop: 6,
-    fontSize: 15,
-    color: '#6B7280',
-  },
+    subtitle: {
+      marginTop: 5,
+      fontSize: 14,
+      color: '#6B7280',
+    },
 
-  list: {
-    paddingTop: 26,
-    paddingBottom: 120,
-  },
+    list: {
+      paddingTop: 20,
+      paddingBottom: 120,
+    },
 
-  sectionHeader: {
-    marginTop: 8,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
+    sectionTitle: {
+      marginTop: 12,
+      marginBottom: 8,
+      fontSize: 17,
+      fontWeight: '700',
+      color: '#374151',
+      textTransform:
+        'capitalize',
+    },
 
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+    card: {
+      marginBottom: 9,
+      padding: 17,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 16,
+      backgroundColor:
+        '#FFFFFF',
+    },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    textTransform: 'capitalize',
-  },
+    cardPlanned: {
+      backgroundColor:
+        '#FFF7ED',
+    },
 
-  sectionTitlePlanned: {
-    color: '#9A3412',
-  },
+    description: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#111827',
+    },
 
-  sectionCount: {
-    marginTop: 3,
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
+    category: {
+      marginTop: 4,
+      fontSize: 13,
+      fontWeight: '600',
+    },
 
-  sectionTotal: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#374151',
-  },
+    amount: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#111827',
+    },
 
-  sectionTotalPlanned: {
-    color: '#C2410C',
-  },
+    modalSafe: {
+      flex: 1,
+      backgroundColor:
+        '#F6F7F9',
+    },
 
-  plannedBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: '#FFEDD5',
-  },
+    modalContent: {
+      padding: 22,
+      paddingBottom: 60,
+    },
 
-  plannedBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#C2410C',
-  },
+    modalTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: '#111827',
+      marginBottom: 20,
+    },
 
-  transactionCard: {
-    marginBottom: 10,
-    padding: 17,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-  },
+    label: {
+      marginTop: 14,
+      marginBottom: 7,
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#374151',
+    },
 
-  transactionCardPlanned: {
-    backgroundColor: '#FFF7ED',
-  },
+    input: {
+      minHeight: 52,
+      paddingHorizontal: 15,
+      justifyContent:
+        'center',
+      borderRadius: 13,
+      backgroundColor:
+        '#FFFFFF',
+      fontSize: 16,
+      color: '#111827',
+    },
 
-  transactionInfo: {
-    flex: 1,
-    paddingRight: 12,
-  },
+    categoryList: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
 
-  description: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-  },
+    categoryChip: {
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor:
+        '#D1D5DB',
+      backgroundColor:
+        '#FFFFFF',
+    },
 
-  metadataRow: {
-    marginTop: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    saveButton: {
+      marginTop: 30,
+      paddingVertical: 16,
+      borderRadius: 14,
+      alignItems: 'center',
+      backgroundColor:
+        '#111827',
+    },
 
-  category: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6366F1',
-  },
+    saveText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
 
-  dot: {
-    marginHorizontal: 5,
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
+    deleteButton: {
+      marginTop: 12,
+      paddingVertical: 15,
+      borderRadius: 14,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor:
+        '#FCA5A5',
+    },
 
-  plannedText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#C2410C',
-  },
+    deleteText: {
+      color: '#DC2626',
+      fontWeight: '600',
+    },
 
-  amount: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
+    closeButton: {
+      marginTop: 12,
+      paddingVertical: 15,
+      alignItems: 'center',
+    },
+  });
 
-  amountPlanned: {
-    color: '#C2410C',
-  },
 
-  emptyCard: {
-    marginTop: 30,
-    padding: 30,
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-  },
-
-  emptyIcon: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#9CA3AF',
-  },
-
-  emptyTitle: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-
-  emptyText: {
-    marginTop: 8,
-    textAlign: 'center',
-    fontSize: 15,
-    color: '#9CA3AF',
-  },
-});
