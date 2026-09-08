@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useExpenses } from '../../context/expenses-context';
+
 import { useCategories } from '../../context/categories-context';
+import { useExpenses } from '../../context/expenses-context';
 
 export default function AddExpenseScreen() {
   const { addExpense } = useExpenses();
@@ -22,12 +23,15 @@ export default function AddExpenseScreen() {
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const amountInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  function handleSave() {
-    const parsedAmount = Number(amount.replace(',', '.'));
+  async function handleSave() {
+    const parsedAmount = Number(
+      amount.replace(',', '.')
+    );
 
     if (!description.trim()) {
       Alert.alert(
@@ -37,7 +41,10 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (
+      Number.isNaN(parsedAmount) ||
+      parsedAmount <= 0
+    ) {
       Alert.alert(
         'Importe incorrecto',
         'Introduce un importe válido.'
@@ -47,36 +54,62 @@ export default function AddExpenseScreen() {
 
     if (!categoryId) {
       setCategoryError(true);
+
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({
+          animated: true,
+        });
+      }, 100);
+
       return;
     }
 
-    setCategoryError(false);
+    try {
+      setSaving(true);
+      setCategoryError(false);
 
-    addExpense({
-      description: description.trim(),
-      amount: parsedAmount,
-      categoryId,
-      transactionDate: new Date(),
-      status: 'completed',
-      source: 'manual',
-    });
+      await addExpense({
+        description: description.trim(),
+        amount: parsedAmount,
+        categoryId,
+        transactionDate: new Date(),
+        status: 'completed',
+        source: 'manual',
+      });
 
-    setDescription('');
-    setAmount('');
-    setCategoryId(null);
-    setCategoryError(false);
+      setDescription('');
+      setAmount('');
+      setCategoryId(null);
+      setCategoryError(false);
 
-    Alert.alert(
-      'Gasto guardado',
-      'El gasto se ha añadido correctamente.'
-    );
+      Alert.alert(
+        'Gasto guardado',
+        'El gasto se ha añadido correctamente.'
+      );
+    } catch (error) {
+      console.error(
+        'Error saving expense:',
+        error
+      );
+
+      Alert.alert(
+        'Error',
+        'No se pudo guardar el gasto.'
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-          <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : 'height'
+        }
       >
         <ScrollView
           ref={scrollViewRef}
@@ -84,7 +117,9 @@ export default function AddExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>Añadir gasto</Text>
+          <Text style={styles.title}>
+            Añadir gasto
+          </Text>
 
           <Text style={styles.subtitle}>
             Escríbelo como quieras.
@@ -104,7 +139,9 @@ export default function AddExpenseScreen() {
               selectionColor="#C7D2FE"
             />
 
-            <TouchableOpacity style={styles.aiButton}>
+            <TouchableOpacity
+              style={styles.aiButton}
+            >
               <Text style={styles.aiButtonText}>
                 Interpretar gasto
               </Text>
@@ -125,7 +162,9 @@ export default function AddExpenseScreen() {
             selectionColor="#D1D5DB"
             returnKeyType="next"
             blurOnSubmit={false}
-            onSubmitEditing={() => amountInputRef.current?.focus()}
+            onSubmitEditing={() =>
+              amountInputRef.current?.focus()
+            }
           />
 
           <TextInput
@@ -149,7 +188,7 @@ export default function AddExpenseScreen() {
                   });
                 }, 100);
               } else {
-                handleSave();
+                void handleSave();
               }
             }}
           />
@@ -166,14 +205,16 @@ export default function AddExpenseScreen() {
 
           <View style={styles.categoryList}>
             {categories.map((category) => {
-              const selected = category.id === categoryId;
+              const selected =
+                category.id === categoryId;
 
               return (
                 <TouchableOpacity
                   key={category.id}
                   style={[
                     styles.categoryChip,
-                    selected && styles.categoryChipSelected,
+                    selected &&
+                      styles.categoryChipSelected,
                   ]}
                   onPress={() => {
                     setCategoryId(category.id);
@@ -183,7 +224,8 @@ export default function AddExpenseScreen() {
                   <Text
                     style={[
                       styles.categoryChipText,
-                      selected && styles.categoryChipTextSelected,
+                      selected &&
+                        styles.categoryChipTextSelected,
                     ]}
                   >
                     {category.name}
@@ -194,17 +236,26 @@ export default function AddExpenseScreen() {
           </View>
 
           <TouchableOpacity
-            style={styles.manualButton}
-            onPress={handleSave}
+            style={[
+              styles.manualButton,
+              saving &&
+                styles.manualButtonDisabled,
+            ]}
+            disabled={saving}
+            onPress={() => {
+              void handleSave();
+            }}
           >
             <Text style={styles.manualButtonText}>
-              Guardar gasto
+              {saving
+                ? 'Guardando...'
+                : 'Guardar gasto'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-      </SafeAreaView>
-      );
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -343,6 +394,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 14,
     backgroundColor: '#111827',
+  },
+
+  manualButtonDisabled: {
+    opacity: 0.6,
   },
 
   manualButtonText: {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -6,7 +6,7 @@ import {
   View,
 } from 'react-native';
 
-import PagerView from '@expo/ui/community/pager-view';
+import PagerView from 'react-native-pager-view';
 
 import HomeScreen from './screens/home-screen';
 import TransactionsScreen from './screens/transactions-screen';
@@ -16,19 +16,19 @@ import CategoriesScreen from './screens/categories-screen';
 const tabs = [
   {
     label: 'Resumen',
-    icon: '⌂',
+    icon: 'âŒ‚',
   },
   {
     label: 'Movimientos',
-    icon: '↕',
+    icon: 'â†•',
   },
   {
-    label: 'Añadir',
-    icon: '＋',
+    label: 'AÃ±adir',
+    icon: 'ï¼‹',
   },
   {
-    label: 'Categorías',
-    icon: '▦',
+    label: 'CategorÃ­as',
+    icon: 'â–¦',
   },
 ];
 

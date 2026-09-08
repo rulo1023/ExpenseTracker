@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState } from 'react';
+﻿import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+
+import { useAuth } from './auth-context';
+import { supabase } from '../lib/supabase';
 
 export type Category = {
   id: string;
@@ -9,35 +17,36 @@ export type Category = {
 
 type CategoriesContextType = {
   categories: Category[];
-  addCategory: (name: string, description: string) => void;
-  getCategoryById: (id: string | null) => Category | undefined;
+  loading: boolean;
+  addCategory: (
+    name: string,
+    description: string
+  ) => Promise<void>;
+  getCategoryById: (
+    id: string | null
+  ) => Category | undefined;
 };
 
-const CategoriesContext = createContext<CategoriesContextType | undefined>(
-  undefined
-);
+const CategoriesContext =
+  createContext<CategoriesContextType | undefined>(
+    undefined
+  );
 
-const initialCategories: Category[] = [
+const defaultCategories = [
   {
-    id: 'shopping',
     name: 'Compra',
     description:
       'Supermercado, alimentación y productos habituales para casa.',
-    createdAt: new Date(),
   },
   {
-    id: 'treats',
     name: 'Caprichos',
     description:
       'Comidas, compras y pequeños gastos fuera de la rutina.',
-    createdAt: new Date(),
   },
   {
-    id: 'leisure',
     name: 'Ocio',
     description:
       'Actividades y gastos destinados principalmente al entretenimiento.',
-    createdAt: new Date(),
   },
 ];
 
@@ -46,32 +55,166 @@ export function CategoriesProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const { user } = useAuth();
+
   const [categories, setCategories] =
-    useState<Category[]>(initialCategories);
+    useState<Category[]>([]);
 
-  function addCategory(name: string, description: string) {
-    const category: Category = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: name.trim(),
-      description: description.trim(),
-      createdAt: new Date(),
-    };
+  const [loading, setLoading] =
+    useState(false);
 
-    setCategories((current) => [...current, category]);
+  useEffect(() => {
+    if (!user) {
+      setCategories([]);
+      return;
+    }
+
+    loadCategories();
+  }, [user?.id]);
+
+  async function loadCategories() {
+    if (!user) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', {
+          ascending: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        const {
+          data: inserted,
+          error: insertError,
+        } = await supabase
+          .from('categories')
+          .insert(
+            defaultCategories.map(
+              (category) => ({
+                user_id: user.id,
+                name: category.name,
+                description:
+                  category.description,
+              })
+            )
+          )
+          .select();
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        setCategories(
+          (inserted ?? []).map(
+            (category) => ({
+              id: category.id,
+              name: category.name,
+              description:
+                category.description,
+              createdAt: new Date(
+                category.created_at
+              ),
+            })
+          )
+        );
+
+        return;
+      }
+
+      setCategories(
+        data.map((category) => ({
+          id: category.id,
+          name: category.name,
+          description:
+            category.description,
+          createdAt: new Date(
+            category.created_at
+          ),
+        }))
+      );
+    } catch (error) {
+      console.error(
+        'Error loading categories:',
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function getCategoryById(id: string | null) {
+  async function addCategory(
+    name: string,
+    description: string
+  ) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('categories')
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        description:
+          description.trim(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const category: Category = {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      createdAt: new Date(
+        data.created_at
+      ),
+    };
+
+    setCategories((current) => [
+      ...current,
+      category,
+    ]);
+  }
+
+  function getCategoryById(
+    id: string | null
+  ) {
     if (!id) {
       return undefined;
     }
 
-    return categories.find((category) => category.id === id);
+    return categories.find(
+      (category) => category.id === id
+    );
   }
 
   return (
     <CategoriesContext.Provider
       value={{
         categories,
+        loading,
         addCategory,
         getCategoryById,
       }}
@@ -82,7 +225,8 @@ export function CategoriesProvider({
 }
 
 export function useCategories() {
-  const context = useContext(CategoriesContext);
+  const context =
+    useContext(CategoriesContext);
 
   if (!context) {
     throw new Error(

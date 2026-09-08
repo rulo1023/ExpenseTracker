@@ -1,6 +1,17 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+﻿import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-export type ExpenseStatus = 'completed' | 'planned';
+import { useAuth } from './auth-context';
+import { supabase } from '../lib/supabase';
+
+export type ExpenseStatus =
+  | 'completed'
+  | 'planned';
 
 export type ExpenseSource =
   | 'manual'
@@ -12,7 +23,7 @@ export type Expense = {
   id: string;
   description: string;
   amount: number;
-  categoryId: string | null;
+  categoryId: string;
   transactionDate: Date;
   status: ExpenseStatus;
   source: ExpenseSource;
@@ -22,7 +33,7 @@ export type Expense = {
 type NewExpenseInput = {
   description: string;
   amount: number;
-  categoryId?: string | null;
+  categoryId: string;
   transactionDate?: Date;
   status?: ExpenseStatus;
   source?: ExpenseSource;
@@ -30,48 +41,175 @@ type NewExpenseInput = {
 
 type ExpensesContextType = {
   expenses: Expense[];
-  addExpense: (expense: NewExpenseInput) => void;
+  loading: boolean;
+  addExpense: (
+    expense: NewExpenseInput
+  ) => Promise<void>;
   total: number;
 };
 
-const ExpensesContext = createContext<ExpensesContextType | undefined>(
-  undefined
-);
+const ExpensesContext =
+  createContext<ExpensesContextType | undefined>(
+    undefined
+  );
 
 export function ExpensesProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { user } = useAuth();
 
-  function addExpense({
+  const [expenses, setExpenses] =
+    useState<Expense[]>([]);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setExpenses([]);
+      return;
+    }
+
+    loadExpenses();
+  }, [user?.id]);
+
+  async function loadExpenses() {
+    if (!user) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('transaction_date', {
+          ascending: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      setExpenses(
+        (data ?? []).map(
+          (expense) => ({
+            id: expense.id,
+            description:
+              expense.description,
+            amount: Number(
+              expense.amount
+            ),
+            categoryId:
+              expense.category_id,
+            transactionDate:
+              new Date(
+                expense.transaction_date
+              ),
+            status:
+              expense.status as ExpenseStatus,
+            source:
+              expense.source as ExpenseSource,
+            createdAt:
+              new Date(
+                expense.created_at
+              ),
+          })
+        )
+      );
+    } catch (error) {
+      console.error(
+        'Error loading expenses:',
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addExpense({
     description,
     amount,
-    categoryId = null,
+    categoryId,
     transactionDate = new Date(),
     status = 'completed',
     source = 'manual',
   }: NewExpenseInput) {
+    if (!user) {
+      throw new Error(
+        'User is not authenticated'
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('expenses')
+      .insert({
+        user_id: user.id,
+        category_id: categoryId,
+        description:
+          description.trim(),
+        amount,
+        currency: 'EUR',
+        transaction_date:
+          transactionDate.toISOString(),
+        status,
+        source,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
     const expense: Expense = {
-      id: Date.now().toString(),
-      description,
-      amount,
-      categoryId,
-      transactionDate,
-      status,
-      source,
-      createdAt: new Date(),
+      id: data.id,
+      description:
+        data.description,
+      amount: Number(data.amount),
+      categoryId:
+        data.category_id,
+      transactionDate:
+        new Date(
+          data.transaction_date
+        ),
+      status:
+        data.status as ExpenseStatus,
+      source:
+        data.source as ExpenseSource,
+      createdAt:
+        new Date(data.created_at),
     };
 
-    setExpenses((current) => [expense, ...current]);
+    setExpenses((current) => [
+      expense,
+      ...current,
+    ]);
   }
 
   const total = useMemo(
     () =>
       expenses
-        .filter((expense) => expense.status === 'completed')
-        .reduce((sum, expense) => sum + expense.amount, 0),
+        .filter(
+          (expense) =>
+            expense.status ===
+            'completed'
+        )
+        .reduce(
+          (sum, expense) =>
+            sum + expense.amount,
+          0
+        ),
     [expenses]
   );
 
@@ -79,6 +217,7 @@ export function ExpensesProvider({
     <ExpensesContext.Provider
       value={{
         expenses,
+        loading,
         addExpense,
         total,
       }}
@@ -89,7 +228,8 @@ export function ExpensesProvider({
 }
 
 export function useExpenses() {
-  const context = useContext(ExpensesContext);
+  const context =
+    useContext(ExpensesContext);
 
   if (!context) {
     throw new Error(

@@ -1,10 +1,13 @@
-import {
+﻿import {
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useAuth } from '../../context/auth-context';
 import { useExpenses } from '../../context/expenses-context';
 
 type HomeScreenProps = {
@@ -15,17 +18,42 @@ export default function HomeScreen({
   onAddExpense,
 }: HomeScreenProps) {
   const { expenses, total } = useExpenses();
+  const { user, signOut } = useAuth();
+
+  async function handleSignOut() {
+    try {
+      await signOut();
+    } catch {
+      Alert.alert(
+        'Error',
+        'No se pudo cerrar la sesión.'
+      );
+    }
+  }
 
   return (
-          <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>
-          ExpenseTracker
-        </Text>
+        <View style={styles.headerTop}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>
+              ExpenseTracker
+            </Text>
 
-        <Text style={styles.subtitle}>
-          Tus finanzas, entendidas en lenguaje natural
-        </Text>
+            <Text style={styles.subtitle}>
+              {user?.email ?? 'Tus finanzas'}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleSignOut}
+          >
+            <Text style={styles.logoutText}>
+              Salir
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -66,8 +94,8 @@ export default function HomeScreen({
           "Ayer cené fuera y gasté 24 euros"
         </Text>
       </View>
-      </SafeAreaView>
-      );
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -82,6 +110,17 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  headerText: {
+    flex: 1,
+    paddingRight: 16,
+  },
+
   title: {
     fontSize: 30,
     fontWeight: '700',
@@ -90,8 +129,21 @@ const styles = StyleSheet.create({
 
   subtitle: {
     marginTop: 6,
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
+  },
+
+  logoutButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
+
+  logoutText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
 
   card: {
