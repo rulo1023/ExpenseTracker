@@ -5,8 +5,8 @@ import {
   Text,
   View,
 } from 'react-native';
-
 import PagerView from 'react-native-pager-view';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import HomeScreen from './screens/home-screen';
 import TransactionsScreen from './screens/transactions-screen';
@@ -16,25 +16,28 @@ import CategoriesScreen from './screens/categories-screen';
 const tabs = [
   {
     label: 'Resumen',
-    icon: 'âŒ‚',
+    icon: 'home-outline',
+    activeIcon: 'home',
   },
   {
     label: 'Movimientos',
-    icon: 'â†•',
+    icon: 'receipt-outline',
+    activeIcon: 'receipt',
   },
   {
-    label: 'AÃ±adir',
-    icon: 'ï¼‹',
+    label: 'Añadir',
+    icon: 'add-circle-outline',
+    activeIcon: 'add-circle',
   },
   {
-    label: 'CategorÃ­as',
-    icon: 'â–¦',
+    label: 'Categorías',
+    icon: 'grid-outline',
+    activeIcon: 'grid',
   },
-];
+] as const;
 
 export default function MainPager() {
-  const pagerRef = useRef<any>(null);
-
+  const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
 
   function goToPage(page: number) {
@@ -48,14 +51,13 @@ export default function MainPager() {
         style={styles.pager}
         initialPage={0}
         onPageSelected={(event) => {
-          setCurrentPage(
-            event.nativeEvent.position
-          );
+          setCurrentPage(event.nativeEvent.position);
         }}
       >
         <View
           key="home"
           style={styles.page}
+          collapsable={false}
         >
           <HomeScreen
             onAddExpense={() => goToPage(2)}
@@ -65,6 +67,7 @@ export default function MainPager() {
         <View
           key="transactions"
           style={styles.page}
+          collapsable={false}
         >
           <TransactionsScreen />
         </View>
@@ -72,6 +75,7 @@ export default function MainPager() {
         <View
           key="add"
           style={styles.page}
+          collapsable={false}
         >
           <AddExpenseScreen />
         </View>
@@ -79,6 +83,7 @@ export default function MainPager() {
         <View
           key="categories"
           style={styles.page}
+          collapsable={false}
         >
           <CategoriesScreen />
         </View>
@@ -86,26 +91,27 @@ export default function MainPager() {
 
       <View style={styles.tabBar}>
         {tabs.map((tab, index) => {
-          const active =
-            currentPage === index;
+          const active = currentPage === index;
 
           return (
             <Pressable
               key={tab.label}
               style={styles.tab}
-              onPress={() =>
-                goToPage(index)
-              }
+              onPress={() => goToPage(index)}
             >
-              <Text
-                style={[
-                  styles.tabIcon,
-                  active &&
-                    styles.tabIconActive,
-                ]}
-              >
-                {tab.icon}
-              </Text>
+              <Ionicons
+                name={
+                  active
+                    ? tab.activeIcon
+                    : tab.icon
+                }
+                size={23}
+                color={
+                  active
+                    ? '#111827'
+                    : '#9CA3AF'
+                }
+              />
 
               <Text
                 style={[
@@ -116,14 +122,6 @@ export default function MainPager() {
               >
                 {tab.label}
               </Text>
-
-              <View
-                style={[
-                  styles.indicator,
-                  active &&
-                    styles.indicatorActive,
-                ]}
-              />
             </Pressable>
           );
         })}
@@ -151,28 +149,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    paddingTop: 8,
     paddingBottom: 10,
-    paddingTop: 7,
   },
 
   tab: {
     flex: 1,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 54,
-  },
-
-  tabIcon: {
-    fontSize: 20,
-    color: '#9CA3AF',
-  },
-
-  tabIconActive: {
-    color: '#111827',
   },
 
   tabLabel: {
-    marginTop: 3,
+    marginTop: 4,
     fontSize: 10,
     fontWeight: '500',
     color: '#9CA3AF',
@@ -181,18 +170,5 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: '#111827',
     fontWeight: '700',
-  },
-
-  indicator: {
-    position: 'absolute',
-    top: -7,
-    width: 28,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'transparent',
-  },
-
-  indicatorActive: {
-    backgroundColor: '#111827',
   },
 });
