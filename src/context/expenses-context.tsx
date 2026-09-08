@@ -1,15 +1,36 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
+export type ExpenseStatus = 'completed' | 'planned';
+
+export type ExpenseSource =
+  | 'manual'
+  | 'text'
+  | 'voice'
+  | 'recurring';
+
 export type Expense = {
   id: string;
   description: string;
   amount: number;
+  categoryId: string | null;
+  transactionDate: Date;
+  status: ExpenseStatus;
+  source: ExpenseSource;
   createdAt: Date;
+};
+
+type NewExpenseInput = {
+  description: string;
+  amount: number;
+  categoryId?: string | null;
+  transactionDate?: Date;
+  status?: ExpenseStatus;
+  source?: ExpenseSource;
 };
 
 type ExpensesContextType = {
   expenses: Expense[];
-  addExpense: (description: string, amount: number) => void;
+  addExpense: (expense: NewExpenseInput) => void;
   total: number;
 };
 
@@ -24,11 +45,22 @@ export function ExpensesProvider({
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  function addExpense(description: string, amount: number) {
+  function addExpense({
+    description,
+    amount,
+    categoryId = null,
+    transactionDate = new Date(),
+    status = 'completed',
+    source = 'manual',
+  }: NewExpenseInput) {
     const expense: Expense = {
       id: Date.now().toString(),
       description,
       amount,
+      categoryId,
+      transactionDate,
+      status,
+      source,
       createdAt: new Date(),
     };
 
@@ -36,7 +68,10 @@ export function ExpensesProvider({
   }
 
   const total = useMemo(
-    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    () =>
+      expenses
+        .filter((expense) => expense.status === 'completed')
+        .reduce((sum, expense) => sum + expense.amount, 0),
     [expenses]
   );
 

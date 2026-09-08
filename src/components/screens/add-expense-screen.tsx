@@ -12,13 +12,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useExpenses } from '../../context/expenses-context';
+import { useCategories } from '../../context/categories-context';
 
 export default function AddExpenseScreen() {
   const { addExpense } = useExpenses();
+  const { categories } = useCategories();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState(false);
+
   const amountInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   function handleSave() {
     const parsedAmount = Number(amount.replace(',', '.'));
@@ -39,10 +45,26 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    addExpense(description.trim(), parsedAmount);
+    if (!categoryId) {
+      setCategoryError(true);
+      return;
+    }
+
+    setCategoryError(false);
+
+    addExpense({
+      description: description.trim(),
+      amount: parsedAmount,
+      categoryId,
+      transactionDate: new Date(),
+      status: 'completed',
+      source: 'manual',
+    });
 
     setDescription('');
     setAmount('');
+    setCategoryId(null);
+    setCategoryError(false);
 
     Alert.alert(
       'Gasto guardado',
@@ -51,12 +73,13 @@ export default function AddExpenseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+          <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -116,8 +139,59 @@ export default function AddExpenseScreen() {
             cursorColor="#111827"
             selectionColor="#D1D5DB"
             returnKeyType="done"
-            onSubmitEditing={handleSave}
+            onSubmitEditing={() => {
+              if (!categoryId) {
+                setCategoryError(true);
+
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({
+                    animated: true,
+                  });
+                }, 100);
+              } else {
+                handleSave();
+              }
+            }}
           />
+
+          <Text style={styles.categoryLabel}>
+            Categoría *
+          </Text>
+
+          {categoryError && (
+            <Text style={styles.categoryError}>
+              Debes seleccionar una categoría.
+            </Text>
+          )}
+
+          <View style={styles.categoryList}>
+            {categories.map((category) => {
+              const selected = category.id === categoryId;
+
+              return (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryChip,
+                    selected && styles.categoryChipSelected,
+                  ]}
+                  onPress={() => {
+                    setCategoryId(category.id);
+                    setCategoryError(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selected && styles.categoryChipTextSelected,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <TouchableOpacity
             style={styles.manualButton}
@@ -129,8 +203,8 @@ export default function AddExpenseScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+      </SafeAreaView>
+      );
 }
 
 const styles = StyleSheet.create({
@@ -215,6 +289,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
     color: '#111827',
+  },
+
+  categoryLabel: {
+    marginTop: 4,
+    marginBottom: 6,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+
+  categoryError: {
+    marginBottom: 10,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#DC2626',
+  },
+
+  categoryList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+
+  categoryChipSelected: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+
+  categoryChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+
+  categoryChipTextSelected: {
+    color: '#FFFFFF',
   },
 
   manualButton: {

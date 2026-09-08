@@ -6,12 +6,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useExpenses } from '../../context/expenses-context';
+import { useCategories } from '../../context/categories-context';
 
 export default function TransactionsScreen() {
   const { expenses } = useExpenses();
+  const { getCategoryById } = useCategories();
 
   return (
-    <SafeAreaView style={styles.container}>
+          <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Movimientos</Text>
 
       <Text style={styles.subtitle}>
@@ -37,13 +39,18 @@ export default function TransactionsScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <View style={styles.transactionCard}>
-              <View>
+              <View style={styles.transactionInfo}>
                 <Text style={styles.description}>
                   {item.description}
                 </Text>
 
+                <Text style={styles.category}>
+                  {getCategoryById(item.categoryId)?.name ?? 'Sin categoría'}
+                </Text>
+
                 <Text style={styles.date}>
-                  {item.createdAt.toLocaleDateString()}
+                  {item.transactionDate.toLocaleDateString()} ·{' '}
+                  {item.status === 'completed' ? 'Realizado' : 'Previsto'}
                 </Text>
               </View>
 
@@ -54,8 +61,8 @@ export default function TransactionsScreen() {
           )}
         />
       )}
-    </SafeAreaView>
-  );
+      </SafeAreaView>
+      );
 }
 
 const styles = StyleSheet.create({
@@ -119,10 +126,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  transactionInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+
   description: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
+  },
+
+  category: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6366F1',
   },
 
   date: {
