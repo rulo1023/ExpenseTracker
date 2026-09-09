@@ -1,4 +1,4 @@
-﻿import DateTimePicker from '@expo/ui/community/datetime-picker';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import {
@@ -7,15 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpenseDonut from '../expense-donut';
+import ExpenseEditorModal from '../expense-editor-modal';
 
-import { useAuth } from '../../context/auth-context';
 import {
   Category,
   useCategories,
@@ -159,22 +158,19 @@ function formatRange(
   ).format(end)}`;
 }
 
+
+type CategoryBreakdown = Category & {
+  value: number;
+  expenses: Expense[];
+};
 export default function HomeScreen({
   onAddExpense,
 }: HomeScreenProps) {
-  const {
-    expenses,
-    updateExpense,
-    deleteExpense,
-  } = useExpenses();
+  const { expenses } = useExpenses();
 
   const {
     categories,
   } = useCategories();
-
-  const {
-    signOut,
-  } = useAuth();
 
   const {
     summaryPeriod,
@@ -222,9 +218,7 @@ export default function HomeScreen({
     selectedCategory,
     setSelectedCategory,
   ] =
-    useState<Category | null>(
-      null
-    );
+    useState<CategoryBreakdown | null>(null);
 
   const [
     editingExpense,
@@ -233,33 +227,6 @@ export default function HomeScreen({
     useState<Expense | null>(
       null
     );
-
-  const [
-    editDescription,
-    setEditDescription,
-  ] = useState('');
-
-  const [
-    editAmount,
-    setEditAmount,
-  ] = useState('');
-
-  const [
-    editCategoryId,
-    setEditCategoryId,
-  ] = useState('');
-
-  const [
-    editDate,
-    setEditDate,
-  ] = useState(
-    new Date()
-  );
-
-  const [
-    editDatePicker,
-    setEditDatePicker,
-  ] = useState(false);
 
   let range;
 
@@ -406,81 +373,8 @@ export default function HomeScreen({
   function openExpense(
     expense: Expense
   ) {
-    setEditingExpense(
-      expense
-    );
-
-    setEditDescription(
-      expense.description
-    );
-
-    setEditAmount(
-      String(expense.amount)
-    );
-
-    setEditCategoryId(
-      expense.categoryId
-    );
-
-    setEditDate(
-      expense.transactionDate
-    );
-  }
-
-  async function saveEditedExpense() {
-    if (!editingExpense) {
-      return;
-    }
-
-    const amount =
-      Number(
-        editAmount.replace(
-          ',',
-          '.'
-        )
-      );
-
-    if (
-      !amount ||
-      amount <= 0 ||
-      !editCategoryId
-    ) {
-      Alert.alert(
-        'Datos incompletos',
-        'Revisa los datos del gasto.'
-      );
-
-      return;
-    }
-
-    const future =
-      startOfDay(
-        editDate
-      ).getTime() >
-      startOfDay(
-        new Date()
-      ).getTime();
-
-    await updateExpense(
-      editingExpense.id,
-      {
-        description:
-          editDescription,
-        amount,
-        categoryId:
-          editCategoryId,
-        transactionDate:
-          editDate,
-        status:
-          future
-            ? 'planned'
-            : 'completed',
-        source:
-          editingExpense.source,
-      }
-    );
-
-    setEditingExpense(null);
+    setSelectedCategory(null);
+    setEditingExpense(expense);
   }
 
   return (
@@ -503,23 +397,6 @@ export default function HomeScreen({
           >
             Resumen
           </Text>
-
-          <TouchableOpacity
-            style={
-              styles.logoutButton
-            }
-            onPress={() => {
-              void signOut();
-            }}
-          >
-            <Text
-              style={
-                styles.logoutText
-              }
-            >
-              Salir
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -1087,218 +964,12 @@ export default function HomeScreen({
         </SafeAreaView>
       </Modal>
 
-      <Modal
-        visible={
-          editingExpense !==
-          null
+      <ExpenseEditorModal
+        expense={editingExpense}
+        onClose={() =>
+          setEditingExpense(null)
         }
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() =>
-          setEditingExpense(
-            null
-          )
-        }
-      >
-        <SafeAreaView
-          style={styles.modalSafe}
-        >
-          <ScrollView
-            contentContainerStyle={
-              styles.modalContent
-            }
-          >
-            <Text
-              style={
-                styles.modalTitle
-              }
-            >
-              Editar gasto
-            </Text>
-
-            <Text style={styles.label}>
-              Descripción
-            </Text>
-
-            <TextInput
-              style={styles.input}
-              value={editDescription}
-              onChangeText={
-                setEditDescription
-              }
-            />
-
-            <Text style={styles.label}>
-              Importe
-            </Text>
-
-            <TextInput
-              style={styles.input}
-              value={editAmount}
-              onChangeText={
-                setEditAmount
-              }
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={styles.label}>
-              Fecha
-            </Text>
-
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() =>
-                setEditDatePicker(
-                  true
-                )
-              }
-            >
-              <Text>
-                {editDate.toLocaleDateString(
-                  'es-ES'
-                )}
-              </Text>
-            </TouchableOpacity>
-
-            {editDatePicker && (
-              <DateTimePicker
-                value={editDate}
-                mode="date"
-                presentation="dialog"
-                onValueChange={(
-                  _event,
-                  value
-                ) => {
-                  setEditDate(
-                    value
-                  );
-
-                  setEditDatePicker(
-                    false
-                  );
-                }}
-                onDismiss={() =>
-                  setEditDatePicker(
-                    false
-                  )
-                }
-              />
-            )}
-
-            <Text style={styles.label}>
-              Categoría
-            </Text>
-
-            <View
-              style={
-                styles.editCategoryList
-              }
-            >
-              {categories.map(
-                (category) => (
-                  <TouchableOpacity
-                    key={
-                      category.id
-                    }
-                    style={[
-                      styles.editCategoryChip,
-                      editCategoryId ===
-                        category.id && {
-                        backgroundColor:
-                          category.color,
-                        borderColor:
-                          category.color,
-                      },
-                    ]}
-                    onPress={() =>
-                      setEditCategoryId(
-                        category.id
-                      )
-                    }
-                  >
-                    <Text
-                      style={{
-                        color:
-                          editCategoryId ===
-                          category.id
-                            ? '#FFFFFF'
-                            : '#374151',
-                      }}
-                    >
-                      {
-                        category.name
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={
-                styles.saveButton
-              }
-              onPress={() => {
-                void saveEditedExpense();
-              }}
-            >
-              <Text
-                style={
-                  styles.saveButtonText
-                }
-              >
-                Guardar cambios
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.deleteButton
-              }
-              onPress={() => {
-                if (
-                  !editingExpense
-                ) {
-                  return;
-                }
-
-                Alert.alert(
-                  'Eliminar gasto',
-                  '¿Seguro que quieres eliminarlo?',
-                  [
-                    {
-                      text: 'Cancelar',
-                    },
-                    {
-                      text: 'Eliminar',
-                      style:
-                        'destructive',
-                      onPress:
-                        async () => {
-                          await deleteExpense(
-                            editingExpense.id
-                          );
-
-                          setEditingExpense(
-                            null
-                          );
-                        },
-                    },
-                  ]
-                );
-              }}
-            >
-              <Text
-                style={
-                  styles.deleteText
-                }
-              >
-                Eliminar gasto
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      />
     </SafeAreaView>
   );
 }
@@ -1325,18 +996,6 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     color: '#111827',
-  },
-
-  logoutButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
-    backgroundColor: '#E5E7EB',
-  },
-
-  logoutText: {
-    color: '#374151',
-    fontWeight: '600',
   },
 
   periodSelector: {
@@ -1600,5 +1259,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 });
-
-

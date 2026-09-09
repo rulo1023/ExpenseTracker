@@ -24,61 +24,64 @@ HECHO
 [x] Infraestructura inicial E5 / ONNX
 [x] Caché preparada para categorías dinámicas y editables
 [x] Development build preparado vía EAS, sin Android Studio
+[x] E5-small validado en development build Android
+[x] Añadir gasto rediseñado para entrada manual rápida
+[x] Selector de categorías reutilizable
+[x] Editor de gasto compartido entre Resumen y Gastos
+[x] Avisos flotantes modernos para guardar, editar y borrar
+[x] Pantalla Movimientos renombrada a Gastos
+[x] Cerrar sesión trasladado a Ajustes
 
 CORTO PLAZO
 
 [ ] Terminar E5-small real en Android
-    [ ] Probar el development APK
-    [ ] Comprobar tokenizer
-    [ ] Comprobar inferencia ONNX
-    [ ] Verificar Top-3 real
+    [x] Probar el development APK
+    [x] Comprobar tokenizer
+    [x] Comprobar inferencia ONNX
+    [x] Verificar Top-3 real
     [ ] Medir primera carga
     [ ] Medir inferencias posteriores
     [ ] Comprobar caché
     [ ] Comprobar crear / editar / borrar categorías
     [ ] Asegurar fallback si E5 falla
 
-[ ] Entrada completa por lenguaje natural
-    [ ] Conectar el TextInput
-    [ ] Botón Interpretar
-    [ ] Extraer importe
-    [ ] Extraer fecha
-    [ ] Generar descripción limpia
-    [ ] E5 para categoría
-    [ ] Rellenar formulario
-    [ ] Permitir revisar antes de guardar
-    [ ] Gestionar frases incompletas
-    [ ] Futuro -> gasto previsto
-    [ ] Conservar source: 'text'
+[x] Entrada manual compacta
+    [x] Eliminar la entrada escrita en lenguaje natural
+    [x] Concepto e importe en la misma fila
+    [x] Enter desde concepto lleva al importe
+    [x] Selector Hoy / Ayer / Otro día con estado activo
+    [x] Futuro -> gasto previsto
+    [x] Sugerencias E5 a partir del concepto
+    [x] Guardado fijo al seleccionar categoría
+    [x] Preview editable antes de guardar
 
 [ ] CategoryPicker reutilizable
-    [ ] Sacar toda la lógica de categorías fuera de add-expense-screen.tsx
-    [ ] Modo expanded para Añadir
-    [ ] Modo compact para Editar
-    [ ] Buscador compartido
+    [x] Sacar el listado y la búsqueda fuera de add-expense-screen.tsx
+    [x] Selector modal compartido para Añadir y Editar
+    [x] Buscador compartido
     [ ] Top-3 compartido
-    [ ] Iconos/colores compartidos
+    [x] Iconos/colores compartidos
 
 [ ] Modernizar Editar gasto
-    [ ] Dejar de mostrar el selector antiguo
-    [ ] Mostrar categoría actual como fila compacta
-    [ ] Icono + color + nombre
-    [ ] Pulsar para abrir selector/modal
-    [ ] Buscador dentro
+    [x] Dejar de mostrar el selector antiguo
+    [x] Mostrar categoría actual como fila compacta
+    [x] Icono + color + nombre
+    [x] Pulsar para abrir selector/modal
+    [x] Buscador dentro
     [ ] Sugerencias de categoría al editar concepto
-    [ ] Mantener UX rápida
+    [x] Usar el mismo editor en Resumen y Gastos
+    [x] Mantener UX rápida
 
 [ ] Pulir Añadir gasto
-    [ ] Mejorar jerarquía visual
-    [ ] Concepto + importe más claros
-    [ ] Sugeridas mejor integradas
-    [ ] Lista de categorías menos larga
-    [ ] Valorar colapsar “Todas las categorías”
-    [ ] Estados de loading
-    [ ] Mejorar foco de teclado
+    [x] Mejorar jerarquía visual
+    [x] Concepto + importe más claros
+    [x] Sugeridas mejor integradas
+    [x] Sustituir la lista larga por un selector modal
+    [x] Estados de loading
+    [x] Mejorar foco de teclado
     [ ] Transiciones suaves
-    [ ] Feedback al seleccionar
-    [ ] Mejor manejo de errores
+    [x] Feedback al seleccionar
+    [x] Mejor manejo de errores
 
 MOVIMIENTOS
 

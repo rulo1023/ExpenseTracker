@@ -1,6 +1,8 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,11 +13,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@expo/ui/community/datetime-picker';
-import { Ionicons } from '@expo/vector-icons';
 
+import CategoryPickerModal from '../category-picker-modal';
 import { useCategories } from '../../context/categories-context';
 import { useExpenses } from '../../context/expenses-context';
+import { useFeedback } from '../../context/feedback-context';
 import { classifyCategories } from '../../lib/expense-intelligence/category-classifier';
 
 function startOfDay(date: Date) {
@@ -24,34 +26,33 @@ function startOfDay(date: Date) {
   return result;
 }
 
-function isTodayDate(date: Date) {
+function isToday(date: Date) {
   return (
     startOfDay(date).getTime() ===
     startOfDay(new Date()).getTime()
   );
 }
 
-function isYesterdayDate(date: Date) {
-  const yesterday = new Date();
-  yesterday.setDate(
-    yesterday.getDate() - 1
-  );
+function isYesterday(date: Date) {
+  const yesterday = startOfDay(new Date());
+  yesterday.setDate(yesterday.getDate() - 1);
 
   return (
     startOfDay(date).getTime() ===
-    startOfDay(yesterday).getTime()
+    yesterday.getTime()
   );
 }
 
-
-
-function isFutureDate(date: Date) {
-  return startOfDay(date).getTime() > startOfDay(new Date()).getTime();
+function isFuture(date: Date) {
+  return (
+    startOfDay(date).getTime() >
+    startOfDay(new Date()).getTime()
+  );
 }
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat('es-ES', {
-    day: '2-digit',
+    day: 'numeric',
     month: 'short',
     year: 'numeric',
   }).format(date);
@@ -59,136 +60,70 @@ function formatDate(date: Date) {
 
 export default function AddExpenseScreen() {
   const { addExpense } = useExpenses();
-  const { categories } = useCategories();
+  const { categories, getCategoryById } =
+    useCategories();
+  const { showFeedback } = useFeedback();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [categorySearch, setCategorySearch] = useState('');
-  const [suggestedCategoryIds, setSuggestedCategoryIds] = useState<string[]>([]);
+  const [categoryId, setCategoryId] =
+    useState<string | null>(null);
+  const [transactionDate, setTransactionDate] =
+    useState(new Date());
+  const [showDatePicker, setShowDatePicker] =
+    useState(false);
+  const [categoryPickerVisible, setCategoryPickerVisible] =
+    useState(false);
+  const [suggestedCategoryIds, setSuggestedCategoryIds] =
+    useState<string[]>([]);
   const [classificationSource, setClassificationSource] =
     useState<'e5' | 'heuristic' | null>(null);
-  const [categoryError, setCategoryError] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [transactionDate, setTransactionDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
   const amountInputRef = useRef<TextInput>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const classificationSequence = useRef(0);
+  const classificationQueue = useRef<Promise<void>>(
+    Promise.resolve()
+  );
 
-  const normalizedCategorySearch =
-    categorySearch
-      .trim()
-      .toLocaleLowerCase('es-ES');
-
-  const filteredCategories =
-    categories.filter((category) => {
-      if (!normalizedCategorySearch) {
-        return true;
-      }
-
-      const searchableText =
-        `${category.name} ${category.description}`
-          .toLocaleLowerCase('es-ES');
-
-      return searchableText.includes(
-        normalizedCategorySearch
-      );
-    });
-
-  function normalizeSuggestionText(value: string) {
-    return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLocaleLowerCase('es-ES')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  function getSuggestedCategoryIds(
-    text: string
-  ): string[] {
-    const input =
-      normalizeSuggestionText(text);
-
-    if (input.length < 2) {
-      return [];
-    }
-
-    const inputTokens =
-      input
-        .split(' ')
-        .filter((token) => token.length >= 3);
-
-    return categories
-      .map((category) => {
-        const name =
-          normalizeSuggestionText(
-            category.name
-          );
-
-        const categoryDescription =
-          normalizeSuggestionText(
-            category.description
-          );
-
-        let score = 0;
-
-        if (name === input) {
-          score += 20;
-        }
-
-        if (
-          input.includes(name) ||
-          name.includes(input)
-        ) {
-          score += 10;
-        }
-
-        for (const token of inputTokens) {
-          if (name.includes(token)) {
-            score += 5;
-          }
-
-          if (
-            categoryDescription.includes(
-              token
-            )
-          ) {
-            score += 2;
-          }
-        }
-
-        return {
-          id: category.id,
-          score,
-        };
-      })
-      .filter((item) => item.score > 0)
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      )
-      .slice(0, 3)
-      .map((item) => item.id);
-  }
+  const selectedCategory =
+    getCategoryById(categoryId);
+  const planned = isFuture(transactionDate);
+  const dateMode = isToday(transactionDate)
+    ? 'today'
+    : isYesterday(transactionDate)
+      ? 'yesterday'
+      : 'other';
 
   useEffect(() => {
-    let cancelled = false;
+    const sequence = ++classificationSequence.current;
+    const text = description.trim();
 
-    const timer =
-      setTimeout(() => {
-        void (async () => {
-          const result =
-            await classifyCategories(
-              description,
-              categories,
-              3
-            );
+    if (text.length < 2 || categories.length === 0) {
+      setSuggestedCategoryIds([]);
+      setClassificationSource(null);
+      setClassifying(false);
+      return;
+    }
 
-          if (cancelled) {
+    const timer = setTimeout(() => {
+      setClassifying(true);
+
+      const task = classificationQueue.current.then(
+        () => classifyCategories(text, categories, 3)
+      );
+
+      classificationQueue.current = task.then(
+        () => undefined,
+        () => undefined
+      );
+
+      void task
+        .then((result) => {
+          if (
+            sequence !== classificationSequence.current
+          ) {
             return;
           }
 
@@ -197,47 +132,43 @@ export default function AddExpenseScreen() {
               (item) => item.categoryId
             )
           );
-
-          setClassificationSource(
-            result.source
+          setClassificationSource(result.source);
+        })
+        .catch((error) => {
+          console.warn(
+            'Category classification failed:',
+            error
           );
-        })();
-      }, 350);
+        })
+        .finally(() => {
+          if (
+            sequence === classificationSequence.current
+          ) {
+            setClassifying(false);
+          }
+        });
+    }, 350);
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [
-    description,
-    categories,
-  ]);
+    return () => clearTimeout(timer);
+  }, [description, categories]);
 
-  function setToday() {
+  function chooseToday() {
     setTransactionDate(new Date());
+    setShowDatePicker(false);
   }
 
-  function setYesterday() {
+  function chooseYesterday() {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     setTransactionDate(yesterday);
-  }
-
-  function handleDateChange(_event: unknown, selectedDate?: Date) {
-    if (selectedDate) {
-      setTransactionDate(selectedDate);
-    }
-
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-  }
-
-  function handleDateDismiss() {
     setShowDatePicker(false);
   }
 
   async function handleSave() {
+    if (saving) {
+      return;
+    }
+
     const parsedAmount = Number(
       amount.replace(',', '.')
     );
@@ -246,30 +177,24 @@ export default function AddExpenseScreen() {
       Number.isNaN(parsedAmount) ||
       parsedAmount <= 0
     ) {
-      Alert.alert(
-        'Importe incorrecto',
-        'Introduce un importe válido.'
+      showFeedback(
+        'Introduce un importe válido.',
+        'error'
       );
+      amountInputRef.current?.focus();
       return;
     }
 
     if (!categoryId) {
-      setCategoryError(true);
-
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({
-          animated: true,
-        });
-      }, 100);
-
+      showFeedback(
+        'Selecciona una categoría.',
+        'error'
+      );
       return;
     }
 
-    const planned = isFutureDate(transactionDate);
-
     try {
       setSaving(true);
-      setCategoryError(false);
 
       await addExpense({
         description: description.trim(),
@@ -283,480 +208,392 @@ export default function AddExpenseScreen() {
       setDescription('');
       setAmount('');
       setCategoryId(null);
-    setSuggestedCategoryIds([]);
-    setClassificationSource(null);
+      setSuggestedCategoryIds([]);
+      setClassificationSource(null);
       setTransactionDate(new Date());
-      setCategoryError(false);
 
-      Alert.alert(
+      showFeedback(
         planned
           ? 'Gasto previsto guardado'
-          : 'Gasto guardado',
-        planned
-          ? 'El gasto futuro se ha añadido correctamente.'
-          : 'El gasto se ha añadido correctamente.'
+          : 'Gasto añadido'
       );
     } catch (error) {
-      console.error(
-        'Error saving expense:',
-        error
-      );
-
-      Alert.alert(
-        'Error',
-        'No se pudo guardar el gasto.'
+      console.error('Error saving expense:', error);
+      showFeedback(
+        'No se pudo guardar el gasto.',
+        'error'
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const planned = isFutureDate(transactionDate);
+  const suggestedCategories =
+    suggestedCategoryIds
+      .map((id) => getCategoryById(id))
+      .filter(Boolean);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={
-          Platform.OS === 'ios'
-            ? 'padding'
-            : 'height'
-        }
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[
+            styles.content,
+            categoryId && styles.contentWithFooter,
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>
-            Añadir gasto
-          </Text>
+          <Text style={styles.title}>Nuevo gasto</Text>
 
           <Text style={styles.subtitle}>
-            Escríbelo como quieras.
+            Añádelo en unos pocos pasos.
           </Text>
 
-          <View style={styles.aiCard}>
-            <Text style={styles.aiLabel}>
-              ✨ Introducir con lenguaje natural
-            </Text>
+          <View style={styles.fieldsRow}>
+            <View style={styles.conceptField}>
+              <Text style={styles.label}>Concepto</Text>
 
-            <TextInput
-              style={styles.textArea}
-              multiline
-              placeholder="Ej: Ayer cené fuera y gasté 24 euros"
-              placeholderTextColor="#9CA3AF"
-              cursorColor="#4F46E5"
-              selectionColor="#C7D2FE"
-            />
+              <TextInput
+                style={styles.input}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Café, compra…"
+                placeholderTextColor="#9CA3AF"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() =>
+                  amountInputRef.current?.focus()
+                }
+              />
+            </View>
 
-            <TouchableOpacity
-              style={styles.aiButton}
-            >
-              <Text style={styles.aiButtonText}>
-                Interpretar gasto
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.amountField}>
+              <Text style={styles.label}>Importe</Text>
+
+              <View style={styles.amountInputContainer}>
+                <Text style={styles.currencySymbol}>€</Text>
+
+                <TextInput
+                  ref={amountInputRef}
+                  style={styles.amountInput}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0,00"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
           </View>
 
-          <Text style={styles.separator}>
-            o introduce los datos manualmente
-          </Text>
+          <Text style={styles.sectionLabel}>Fecha</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Descripción"
-            placeholderTextColor="#9CA3AF"
-            value={description}
-            onChangeText={setDescription}
-            cursorColor="#111827"
-            selectionColor="#D1D5DB"
-            returnKeyType="next"
-            blurOnSubmit={false}
-            onSubmitEditing={() =>
-              amountInputRef.current?.focus()
-            }
-          />
-
-          <TextInput
-            ref={amountInputRef}
-            style={styles.input}
-            placeholder="Importe"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="decimal-pad"
-            value={amount}
-            onChangeText={setAmount}
-            cursorColor="#111827"
-            selectionColor="#D1D5DB"
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (!categoryId) {
-                setCategoryError(true);
-
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({
-                    animated: true,
-                  });
-                }, 100);
-              }
-            }}
-          />
-
-          <Text style={styles.sectionLabel}>
-            Fecha
-          </Text>
-
-          <View style={styles.quickDateRow}>
+          <View style={styles.dateOptions}>
             <TouchableOpacity
-              style={styles.quickDateButton}
-              onPress={setToday}
+              activeOpacity={0.75}
+              style={[
+                styles.dateOption,
+                dateMode === 'today' &&
+                  styles.dateOptionActive,
+              ]}
+              onPress={chooseToday}
             >
-              <Text style={styles.quickDateText}>
+              <Text
+                style={[
+                  styles.dateOptionText,
+                  dateMode === 'today' &&
+                    styles.dateOptionTextActive,
+                ]}
+              >
                 Hoy
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.quickDateButton}
-              onPress={setYesterday}
+              activeOpacity={0.75}
+              style={[
+                styles.dateOption,
+                dateMode === 'yesterday' &&
+                  styles.dateOptionActive,
+              ]}
+              onPress={chooseYesterday}
             >
-              <Text style={styles.quickDateText}>
+              <Text
+                style={[
+                  styles.dateOptionText,
+                  dateMode === 'yesterday' &&
+                    styles.dateOptionTextActive,
+                ]}
+              >
                 Ayer
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() =>
-                setShowDatePicker(true)
-              }
+              activeOpacity={0.75}
+              style={[
+                styles.dateOption,
+                dateMode === 'other' &&
+                  styles.dateOptionActive,
+              ]}
+              onPress={() => setShowDatePicker(true)}
             >
-              <Text style={styles.dateButtonText}>
-                {formatDate(transactionDate)}
+              <Text
+                style={[
+                  styles.dateOptionText,
+                  dateMode === 'other' &&
+                    styles.dateOptionTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {dateMode === 'other'
+                  ? formatDate(transactionDate)
+                  : 'Otro día'}
               </Text>
             </TouchableOpacity>
           </View>
-
-          {planned && (
-            <View style={styles.plannedBanner}>
-              <Text style={styles.plannedTitle}>
-                Gasto previsto
-              </Text>
-
-              <Text style={styles.plannedText}>
-                Esta fecha está en el futuro. El gasto se guardará como previsto.
-              </Text>
-            </View>
-          )}
 
           {showDatePicker && (
             <DateTimePicker
               value={transactionDate}
               mode="date"
-              display={
-                Platform.OS === 'ios'
-                  ? 'inline'
-                  : 'default'
-              }
-              onChange={handleDateChange}
+              presentation="dialog"
+              onValueChange={(_event, value) => {
+                setTransactionDate(value);
+                setShowDatePicker(false);
+              }}
+              onDismiss={() => setShowDatePicker(false)}
             />
           )}
 
-          <Text style={styles.categoryLabel}>
-            Categoría *
-          </Text>
+          {planned && (
+            <View style={styles.plannedBanner}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color="#C2410C"
+              />
 
-          {categoryError && (
-            <Text style={styles.categoryError}>
-              Debes seleccionar una categoría.
-            </Text>
+              <View style={styles.plannedTextContainer}>
+                <Text style={styles.plannedTitle}>
+                  Gasto previsto
+                </Text>
+
+                <Text style={styles.plannedText}>
+                  Se guardará como pendiente hasta esa fecha.
+                </Text>
+              </View>
+            </View>
           )}
-{suggestedCategoryIds.length > 0 && (
-        <View style={styles.suggestionsSection}>
-          <View style={styles.suggestionsTitleRow}>
-            <Ionicons
-              name="sparkles"
-              size={17}
-              color="#4F46E5"
-            />
 
-            <Text style={styles.suggestionsTitle}>
-              Sugeridas
-            </Text>
+          <View style={styles.categoryHeading}>
+            <Text style={styles.sectionLabel}>Categoría</Text>
 
-            {__DEV__ &&
-              classificationSource && (
-                <View
-                  style={[
-                    styles.classifierBadge,
-                    classificationSource ===
-                    'e5'
-                      ? styles.classifierBadgeE5
-                      : styles.classifierBadgeHeuristic,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.classifierBadgeText,
-                      classificationSource ===
-                      'e5'
-                        ? styles.classifierBadgeTextE5
-                        : styles.classifierBadgeTextHeuristic,
-                    ]}
-                  >
-                    {classificationSource ===
-                    'e5'
-                      ? '🧠 E5 local'
-                      : '⚙️ Heurística'}
-                  </Text>
-                </View>
-              )}
+            {classifying && (
+              <View style={styles.classifying}>
+                <ActivityIndicator
+                  size="small"
+                  color="#6366F1"
+                />
+                <Text style={styles.classifyingText}>
+                  Buscando…
+                </Text>
+              </View>
+            )}
           </View>
 
-          <View style={styles.suggestionsList}>
-            {suggestedCategoryIds
-              .map((id) =>
-                categories.find(
-                  (category) =>
-                    category.id === id
-                )
-              )
-              .filter(Boolean)
-              .map((category) => {
-                if (!category) {
-                  return null;
-                }
-
-                const selected =
-                  category.id === categoryId;
-
-                const categoryColor =
-                  category.color ||
-                  '#6366F1';
-
-                const categoryIcon =
-                  category.icon ||
-                  'pricetag-outline';
-
-                return (
-                  <TouchableOpacity
-                    key={category.id}
-                    activeOpacity={0.75}
-                    style={[
-                      styles.suggestionCard,
-                      {
-                        borderColor:
-                          selected
-                            ? categoryColor
-                            : `${categoryColor}45`,
-                        backgroundColor:
-                          selected
-                            ? `${categoryColor}12`
-                            : '#FFFFFF',
-                      },
-                    ]}
-                    onPress={() => {
-                      setCategoryId(
-                        category.id
-                      );
-                      setCategoryError(false);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.suggestionIcon,
-                        {
-                          backgroundColor:
-                            selected
-                              ? categoryColor
-                              : `${categoryColor}18`,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={
-                          categoryIcon as any
-                        }
-                        size={20}
-                        color={
-                          selected
-                            ? '#FFFFFF'
-                            : categoryColor
-                        }
-                      />
-                    </View>
-
-                    <Text
-                      style={
-                        styles.suggestionText
-                      }
-                      numberOfLines={2}
-                    >
-                      {category.name}
-                    </Text>
-
-                    {selected && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={18}
-                        color={
-                          categoryColor
-                        }
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-          </View>
-        </View>
-      )}
-
-      <View style={styles.categorySearch}>
-        <Ionicons
-          name="search-outline"
-          size={20}
-          color="#9CA3AF"
-        />
-
-        <TextInput
-          style={styles.categorySearchInput}
-          value={categorySearch}
-          onChangeText={setCategorySearch}
-          placeholder="Buscar categoría..."
-          placeholderTextColor="#9CA3AF"
-          cursorColor="#4F46E5"
-          selectionColor="#C7D2FE"
-          autoCorrect={false}
-        />
-
-        {categorySearch.length > 0 && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() =>
-              setCategorySearch('')
-            }
-          >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color="#9CA3AF"
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {filteredCategories.length === 0 && (
-        <View style={styles.noCategoriesFound}>
-          <Ionicons
-            name="search-outline"
-            size={24}
-            color="#9CA3AF"
-          />
-
-          <Text style={styles.noCategoriesFoundText}>
-            No encontramos ninguna categoría
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.categoryList}>
-        {filteredCategories.map((category) => {
-          const selected =
-            category.id === categoryId;
-
-          const categoryColor =
-            category.color || '#6366F1';
-
-          const categoryIcon =
-            category.icon ||
-            'pricetag-outline';
-
-          return (
-            <TouchableOpacity
-              key={category.id}
-              activeOpacity={0.75}
+          {selectedCategory && (
+            <View
               style={[
-                styles.categoryCard,
+                styles.selectedCategory,
                 {
-                  borderColor: selected
-                    ? categoryColor
-                    : `${categoryColor}45`,
-                  backgroundColor: selected
-                    ? `${categoryColor}12`
-                    : '#FFFFFF',
+                  borderColor: `${selectedCategory.color}50`,
+                  backgroundColor: `${selectedCategory.color}0D`,
                 },
               ]}
-              onPress={() => {
-                setCategoryId(category.id);
-                setCategoryError(false);
-              }}
             >
               <View
                 style={[
-                  styles.categoryIcon,
+                  styles.selectedCategoryIcon,
                   {
-                    backgroundColor: selected
-                      ? categoryColor
-                      : `${categoryColor}18`,
+                    backgroundColor: `${selectedCategory.color}20`,
                   },
                 ]}
               >
                 <Ionicons
-                  name={categoryIcon as any}
-                  size={22}
-                  color={
-                    selected
-                      ? '#FFFFFF'
-                      : categoryColor
-                  }
+                  name={selectedCategory.icon as any}
+                  size={23}
+                  color={selectedCategory.color}
                 />
               </View>
 
-              <Text
-                style={[
-                  styles.categoryCardText,
-                  selected &&
-                    styles.categoryCardTextSelected,
-                ]}
-                numberOfLines={2}
-              >
-                {category.name}
-              </Text>
+              <View style={styles.selectedCategoryText}>
+                <Text style={styles.selectedCategoryLabel}>
+                  Seleccionada
+                </Text>
+                <Text style={styles.selectedCategoryName}>
+                  {selectedCategory.name}
+                </Text>
+              </View>
 
-              {selected && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={19}
-                  color={categoryColor}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+              <TouchableOpacity
+                onPress={() => setCategoryPickerVisible(true)}
+              >
+                <Text style={styles.changeCategory}>Cambiar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {suggestedCategories.length > 0 && (
+            <View style={styles.suggestionsSection}>
+              <View style={styles.suggestionsHeader}>
+                <View style={styles.suggestionsTitleRow}>
+                  <Ionicons
+                    name="sparkles"
+                    size={16}
+                    color="#4F46E5"
+                  />
+                  <Text style={styles.suggestionsTitle}>
+                    Sugeridas
+                  </Text>
+                </View>
+
+                {__DEV__ && classificationSource && (
+                  <Text style={styles.sourceBadge}>
+                    {classificationSource === 'e5'
+                      ? 'E5 local'
+                      : 'Heurística'}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.suggestionsList}>
+                {suggestedCategories.map((category) => {
+                  if (!category) {
+                    return null;
+                  }
+
+                  const selected =
+                    category.id === categoryId;
+
+                  return (
+                    <TouchableOpacity
+                      key={category.id}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.suggestionCard,
+                        selected && {
+                          borderColor: category.color,
+                          backgroundColor: `${category.color}10`,
+                        },
+                      ]}
+                      onPress={() => setCategoryId(category.id)}
+                    >
+                      <View
+                        style={[
+                          styles.suggestionIcon,
+                          {
+                            backgroundColor: `${category.color}18`,
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={category.icon as any}
+                          size={20}
+                          color={category.color}
+                        />
+                      </View>
+
+                      <Text
+                        style={styles.suggestionText}
+                        numberOfLines={2}
+                      >
+                        {category.name}
+                      </Text>
+
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={18}
+                          color={category.color}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
-            style={[
-              styles.manualButton,
-              saving &&
-                styles.manualButtonDisabled,
-            ]}
-            disabled={saving}
-            onPress={() => {
-              void handleSave();
-            }}
+            activeOpacity={0.75}
+            style={styles.allCategoriesButton}
+            onPress={() => setCategoryPickerVisible(true)}
           >
-            <Text style={styles.manualButtonText}>
-              {saving
-                ? 'Guardando...'
-                : planned
-                  ? 'Guardar gasto previsto'
-                  : 'Guardar gasto'}
+            <View style={styles.allCategoriesIcon}>
+              <Ionicons
+                name="grid-outline"
+                size={20}
+                color="#4F46E5"
+              />
+            </View>
+
+            <Text style={styles.allCategoriesText}>
+              {selectedCategory
+                ? 'Ver todas las categorías'
+                : 'Elegir categoría'}
             </Text>
+
+            <Ionicons
+              name="chevron-forward"
+              size={19}
+              color="#9CA3AF"
+            />
           </TouchableOpacity>
         </ScrollView>
+
+        {categoryId && (
+          <View style={styles.footer}>
+            <TouchableOpacity
+              activeOpacity={0.82}
+              style={[
+                styles.saveButton,
+                saving && styles.saveButtonDisabled,
+              ]}
+              disabled={saving}
+              onPress={() => void handleSave()}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={21}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.saveButtonText}>
+                    {planned
+                      ? 'Guardar gasto previsto'
+                      : 'Guardar gasto'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
+
+      <CategoryPickerModal
+        visible={categoryPickerVisible}
+        selectedCategoryId={categoryId}
+        onSelect={setCategoryId}
+        onClose={() => setCategoryPickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -771,10 +608,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  container: {
+  content: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 34,
+  },
+
+  contentWithFooter: {
+    paddingBottom: 110,
   },
 
   title: {
@@ -785,116 +626,130 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    marginTop: 6,
-    fontSize: 15,
+    marginTop: 5,
+    fontSize: 14,
     color: '#6B7280',
   },
 
-  aiCard: {
-    marginTop: 26,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 20,
-    padding: 20,
+  fieldsRow: {
+    marginTop: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
   },
 
-  aiLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3730A3',
+  conceptField: {
+    flex: 1.55,
   },
 
-  textArea: {
-    marginTop: 14,
-    minHeight: 110,
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    fontSize: 16,
-    textAlignVertical: 'top',
-    color: '#111827',
+  amountField: {
+    flex: 1,
   },
 
-  aiButton: {
-    marginTop: 14,
-    paddingVertical: 15,
-    borderRadius: 14,
-    alignItems: 'center',
-    backgroundColor: '#4F46E5',
-  },
-
-  aiButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-
-  separator: {
-    marginVertical: 24,
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 14,
+  label: {
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4B5563',
   },
 
   input: {
+    height: 58,
+    paddingHorizontal: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
     fontSize: 16,
-    marginBottom: 12,
+    color: '#111827',
+  },
+
+  amountInputContainer: {
+    height: 58,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  currencySymbol: {
+    marginRight: 5,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+
+  amountInput: {
+    flex: 1,
+    height: '100%',
+    minWidth: 0,
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
   },
 
   sectionLabel: {
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 24,
+    marginBottom: 10,
     fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+  },
+
+  dateOptions: {
+    padding: 4,
+    borderRadius: 16,
+    backgroundColor: '#E9ECF1',
+    flexDirection: 'row',
+    gap: 4,
+  },
+
+  dateOption: {
+    flex: 1,
+    minHeight: 43,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  dateOptionActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 2,
+  },
+
+  dateOptionText: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#6B7280',
   },
 
-  quickDateRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14,
-  },
-
-  quickDateButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-
-  quickDateText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-
-  dateButton: {
-    flexGrow: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-  },
-
-  dateButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  dateOptionTextActive: {
+    color: '#111827',
+    fontWeight: '700',
   },
 
   plannedBanner: {
-    marginBottom: 14,
-    padding: 14,
+    marginTop: 12,
+    padding: 13,
     borderRadius: 14,
     backgroundColor: '#FFF7ED',
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  plannedTextContainer: {
+    flex: 1,
   },
 
   plannedTitle: {
@@ -904,34 +759,85 @@ const styles = StyleSheet.create({
   },
 
   plannedText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 17,
     color: '#C2410C',
   },
 
-  categoryLabel: {
-    marginTop: 4,
-    marginBottom: 6,
-    fontSize: 14,
+  categoryHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+
+  classifying: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  classifyingText: {
+    fontSize: 11,
+    color: '#6366F1',
+  },
+
+  selectedCategory: {
+    minHeight: 68,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+
+  selectedCategoryIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  selectedCategoryText: {
+    flex: 1,
+  },
+
+  selectedCategoryLabel: {
+    fontSize: 11,
     fontWeight: '600',
     color: '#6B7280',
   },
 
-  categoryError: {
-    marginBottom: 10,
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#DC2626',
+  selectedCategoryName: {
+    marginTop: 2,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
   },
 
+  changeCategory: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
 
   suggestionsSection: {
-    marginBottom: 16,
+    marginTop: 16,
+  },
+
+  suggestionsHeader: {
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   suggestionsTitleRow: {
-    marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -943,32 +849,15 @@ const styles = StyleSheet.create({
     color: '#4F46E5',
   },
 
-  classifierBadge: {
-    marginLeft: 'auto',
+  sourceBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
-  },
-
-  classifierBadgeE5: {
+    borderRadius: 99,
+    overflow: 'hidden',
     backgroundColor: '#ECFDF5',
-  },
-
-  classifierBadgeHeuristic: {
-    backgroundColor: '#F3F4F6',
-  },
-
-  classifierBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-  },
-
-  classifierBadgeTextE5: {
     color: '#047857',
-  },
-
-  classifierBadgeTextHeuristic: {
-    color: '#6B7280',
   },
 
   suggestionsList: {
@@ -979,11 +868,13 @@ const styles = StyleSheet.create({
   suggestionCard: {
     flex: 1,
     minWidth: 0,
-    minHeight: 78,
+    minHeight: 82,
     paddingHorizontal: 8,
     paddingVertical: 9,
     borderRadius: 14,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -1005,122 +896,65 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
 
-  categorySearch: {
-    height: 48,
-    marginBottom: 12,
-    paddingHorizontal: 14,
+  allCategoriesButton: {
+    marginTop: 14,
+    minHeight: 58,
+    paddingHorizontal: 13,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 11,
   },
 
-  categorySearchInput: {
-    flex: 1,
-    height: '100%',
-    paddingVertical: 0,
-    fontSize: 14,
-    color: '#111827',
-  },
-
-  noCategoriesFound: {
-    marginBottom: 16,
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-
-  noCategoriesFoundText: {
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
-
-  categoryList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
-  },
-
-  categoryCard: {
-    width: '48%',
-    minHeight: 74,
-    paddingHorizontal: 11,
-    paddingVertical: 11,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-
-  categoryIcon: {
-    width: 40,
-    height: 40,
+  allCategoriesIcon: {
+    width: 38,
+    height: 38,
     borderRadius: 12,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  categoryCardText: {
+  allCategoriesText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#374151',
   },
 
-  categoryCardTextSelected: {
-    fontWeight: '700',
-    color: '#111827',
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F6F7F9F5',
   },
 
-  manualButton: {
-    marginTop: 4,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderRadius: 14,
+  saveButton: {
+    minHeight: 54,
+    borderRadius: 16,
     backgroundColor: '#111827',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
   },
 
-  manualButtonDisabled: {
-    opacity: 0.6,
+  saveButtonDisabled: {
+    opacity: 0.55,
   },
 
-  manualButtonText: {
+  saveButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

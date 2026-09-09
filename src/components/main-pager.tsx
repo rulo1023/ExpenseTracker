@@ -1,5 +1,6 @@
 ﻿import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRef, useState } from 'react';
+import { isRunningInExpoGo } from 'expo';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -17,6 +18,41 @@ import TransactionsScreen from './screens/transactions-screen';
 export default function MainPager() {
   const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [e5Status, setE5Status] = useState<
+    'expo-go' | 'preparing' | 'ready' | 'error'
+  >('preparing');
+
+  useEffect(() => {
+    // Expo Go no contiene ONNX Runtime.
+    if (isRunningInExpoGo()) {
+      setE5Status('expo-go');
+      return;
+    }
+
+    void import(
+      '../lib/expense-intelligence/e5-engine'
+    )
+      .then(({ initializeE5 }) =>
+        initializeE5()
+      )
+      .then(() => {
+        setE5Status('ready');
+
+        if (__DEV__) {
+          console.log(
+            '[E5] tokenizer y sesión preparados para inferencia'
+          );
+        }
+      })
+      .catch((error) => {
+        setE5Status('error');
+
+        console.warn(
+          '[E5] no se pudo preparar el modelo',
+          error
+        );
+      });
+  }, []);
 
   function goToPage(page: number) {
     pagerRef.current?.setPage(page);
@@ -79,6 +115,28 @@ export default function MainPager() {
         </View>
       </PagerView>
 
+      {__DEV__ && (
+        <View
+          style={[
+            styles.e5Status,
+            e5Status === 'ready' &&
+              styles.e5StatusReady,
+            e5Status === 'error' &&
+              styles.e5StatusError,
+          ]}
+        >
+          <Text style={styles.e5StatusText}>
+            {e5Status === 'ready'
+              ? 'E5 local listo'
+              : e5Status === 'error'
+                ? 'E5 no disponible · usando heurística'
+                : e5Status === 'expo-go'
+                  ? 'Expo Go · usando heurística'
+                  : 'Preparando E5 local…'}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.tabBar}>
         <Pressable
           style={styles.tab}
@@ -138,7 +196,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Movimientos
+            Gastos
           </Text>
         </Pressable>
 
@@ -249,6 +307,29 @@ const styles = StyleSheet.create({
 
   page: {
     flex: 1,
+  },
+
+  e5Status: {
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+
+  e5StatusReady: {
+    backgroundColor: '#DCFCE7',
+  },
+
+  e5StatusError: {
+    backgroundColor: '#FEE2E2',
+  },
+
+  e5StatusText: {
+    color: '#374151',
+    fontSize: 11,
+    fontWeight: '700',
   },
 
   tabBar: {
