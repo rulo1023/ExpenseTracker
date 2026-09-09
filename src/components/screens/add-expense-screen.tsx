@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useCategories } from '../../context/categories-context';
 import { useExpenses } from '../../context/expenses-context';
+import { classifyCategories } from '../../lib/expense-intelligence/category-classifier';
 
 function startOfDay(date: Date) {
   const result = new Date(date);
@@ -43,6 +44,7 @@ export default function AddExpenseScreen() {
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState('');
+  const [suggestedCategoryIds, setSuggestedCategoryIds] = useState<string[]>([]);
   const [categoryError, setCategoryError] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -71,6 +73,118 @@ export default function AddExpenseScreen() {
         normalizedCategorySearch
       );
     });
+
+  function normalizeSuggestionText(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('es-ES')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function getSuggestedCategoryIds(
+    text: string
+  ): string[] {
+    const input =
+      normalizeSuggestionText(text);
+
+    if (input.length < 2) {
+      return [];
+    }
+
+    const inputTokens =
+      input
+        .split(' ')
+        .filter((token) => token.length >= 3);
+
+    return categories
+      .map((category) => {
+        const name =
+          normalizeSuggestionText(
+            category.name
+          );
+
+        const categoryDescription =
+          normalizeSuggestionText(
+            category.description
+          );
+
+        let score = 0;
+
+        if (name === input) {
+          score += 20;
+        }
+
+        if (
+          input.includes(name) ||
+          name.includes(input)
+        ) {
+          score += 10;
+        }
+
+        for (const token of inputTokens) {
+          if (name.includes(token)) {
+            score += 5;
+          }
+
+          if (
+            categoryDescription.includes(
+              token
+            )
+          ) {
+            score += 2;
+          }
+        }
+
+        return {
+          id: category.id,
+          score,
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      )
+      .slice(0, 3)
+      .map((item) => item.id);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const timer =
+      setTimeout(() => {
+        void (async () => {
+          const result =
+            await classifyCategories(
+              description,
+              categories,
+              3
+            );
+
+          if (cancelled) {
+            return;
+          }
+
+          setSuggestedCategoryIds(
+            result.suggestions.map(
+              (item) => item.categoryId
+            )
+          );
+        })();
+      }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    description,
+    categories,
+  ]);
 
   function setToday() {
     setTransactionDate(new Date());
@@ -143,6 +257,7 @@ export default function AddExpenseScreen() {
       setDescription('');
       setAmount('');
       setCategoryId(null);
+    setSuggestedCategoryIds([]);
       setTransactionDate(new Date());
       setCategoryError(false);
 
@@ -330,8 +445,119 @@ export default function AddExpenseScreen() {
               Debes seleccionar una categoría.
             </Text>
           )}
+{suggestedCategoryIds.length > 0 && (
+        <View style={styles.suggestionsSection}>
+          <View style={styles.suggestionsTitleRow}>
+            <Ionicons
+              name="sparkles"
+              size={17}
+              color="#4F46E5"
+            />
 
-          <View style={styles.categorySearch}>
+            <Text style={styles.suggestionsTitle}>
+              Sugeridas
+            </Text>
+          </View>
+
+          <View style={styles.suggestionsList}>
+            {suggestedCategoryIds
+              .map((id) =>
+                categories.find(
+                  (category) =>
+                    category.id === id
+                )
+              )
+              .filter(Boolean)
+              .map((category) => {
+                if (!category) {
+                  return null;
+                }
+
+                const selected =
+                  category.id === categoryId;
+
+                const categoryColor =
+                  category.color ||
+                  '#6366F1';
+
+                const categoryIcon =
+                  category.icon ||
+                  'pricetag-outline';
+
+                return (
+                  <TouchableOpacity
+                    key={category.id}
+                    activeOpacity={0.75}
+                    style={[
+                      styles.suggestionCard,
+                      {
+                        borderColor:
+                          selected
+                            ? categoryColor
+                            : `${categoryColor}45`,
+                        backgroundColor:
+                          selected
+                            ? `${categoryColor}12`
+                            : '#FFFFFF',
+                      },
+                    ]}
+                    onPress={() => {
+                      setCategoryId(
+                        category.id
+                      );
+                      setCategoryError(false);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.suggestionIcon,
+                        {
+                          backgroundColor:
+                            selected
+                              ? categoryColor
+                              : `${categoryColor}18`,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          categoryIcon as any
+                        }
+                        size={20}
+                        color={
+                          selected
+                            ? '#FFFFFF'
+                            : categoryColor
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={
+                        styles.suggestionText
+                      }
+                      numberOfLines={2}
+                    >
+                      {category.name}
+                    </Text>
+
+                    {selected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color={
+                          categoryColor
+                        }
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.categorySearch}>
         <Ionicons
           name="search-outline"
           size={20}
@@ -644,6 +870,58 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
 
+
+  suggestionsSection: {
+    marginBottom: 16,
+  },
+
+  suggestionsTitleRow: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  suggestionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+
+  suggestionsList: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  suggestionCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 78,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+
+  suggestionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  suggestionText: {
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+
   categorySearch: {
     height: 48,
     marginBottom: 12,
@@ -736,6 +1014,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
+
+
 
 
 
