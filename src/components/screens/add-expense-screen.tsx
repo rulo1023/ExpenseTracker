@@ -15,10 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from '../category-picker-modal';
+import {
+  currencyInfo,
+  useAppSettings,
+} from '../../context/app-settings-context';
 import { useCategories } from '../../context/categories-context';
 import { useExpenses } from '../../context/expenses-context';
 import { useFeedback } from '../../context/feedback-context';
 import { classifyCategories } from '../../lib/expense-intelligence/category-classifier';
+import { useAppStyles } from '../../lib/themed-styles';
 
 function startOfDay(date: Date) {
   const result = new Date(date);
@@ -59,10 +64,12 @@ function formatDate(date: Date) {
 }
 
 export default function AddExpenseScreen() {
+  const styles = useAppStyles(lightStyles);
   const { addExpense } = useExpenses();
   const { categories, getCategoryById } =
     useCategories();
   const { showFeedback } = useFeedback();
+  const { inputCurrency } = useAppSettings();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -199,6 +206,7 @@ export default function AddExpenseScreen() {
       await addExpense({
         description: description.trim(),
         amount: parsedAmount,
+        currency: inputCurrency,
         categoryId,
         transactionDate,
         status: planned ? 'planned' : 'completed',
@@ -275,7 +283,9 @@ export default function AddExpenseScreen() {
               <Text style={styles.label}>Importe</Text>
 
               <View style={styles.amountInputContainer}>
-                <Text style={styles.currencySymbol}>€</Text>
+                <Text style={styles.currencySymbol}>
+                  {currencyInfo(inputCurrency).symbol}
+                </Text>
 
                 <TextInput
                   ref={amountInputRef}
@@ -598,7 +608,7 @@ export default function AddExpenseScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',

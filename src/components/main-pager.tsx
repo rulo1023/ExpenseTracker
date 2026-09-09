@@ -14,13 +14,23 @@ import CategoriesScreen from './screens/categories-screen';
 import HomeScreen from './screens/home-screen';
 import SettingsScreen from './screens/settings-screen';
 import TransactionsScreen from './screens/transactions-screen';
+import { useAppSettings } from '../context/app-settings-context';
+import { useAppStyles } from '../lib/themed-styles';
+
+export type E5Status =
+  | 'expo-go'
+  | 'preparing'
+  | 'ready'
+  | 'error';
 
 export default function MainPager() {
+  const styles = useAppStyles(lightStyles);
+  const { isDark } = useAppSettings();
+  const tabIconColor = isDark ? '#F9FAFB' : '#111827';
   const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [e5Status, setE5Status] = useState<
-    'expo-go' | 'preparing' | 'ready' | 'error'
-  >('preparing');
+  const [e5Status, setE5Status] =
+    useState<E5Status>('preparing');
 
   useEffect(() => {
     // Expo Go no contiene ONNX Runtime.
@@ -111,31 +121,9 @@ export default function MainPager() {
           style={styles.page}
           collapsable={false}
         >
-          <SettingsScreen />
+          <SettingsScreen e5Status={e5Status} />
         </View>
       </PagerView>
-
-      {__DEV__ && (
-        <View
-          style={[
-            styles.e5Status,
-            e5Status === 'ready' &&
-              styles.e5StatusReady,
-            e5Status === 'error' &&
-              styles.e5StatusError,
-          ]}
-        >
-          <Text style={styles.e5StatusText}>
-            {e5Status === 'ready'
-              ? 'E5 local listo'
-              : e5Status === 'error'
-                ? 'E5 no disponible · usando heurística'
-                : e5Status === 'expo-go'
-                  ? 'Expo Go · usando heurística'
-                  : 'Preparando E5 local…'}
-          </Text>
-        </View>
-      )}
 
       <View style={styles.tabBar}>
         <Pressable
@@ -153,7 +141,7 @@ export default function MainPager() {
             size={23}
             color={
               currentPage === 0
-                ? '#111827'
+                ? tabIconColor
                 : '#9CA3AF'
             }
           />
@@ -184,7 +172,7 @@ export default function MainPager() {
             size={23}
             color={
               currentPage === 1
-                ? '#111827'
+                ? tabIconColor
                 : '#9CA3AF'
             }
           />
@@ -244,7 +232,7 @@ export default function MainPager() {
             size={23}
             color={
               currentPage === 3
-                ? '#111827'
+                ? tabIconColor
                 : '#9CA3AF'
             }
           />
@@ -275,7 +263,7 @@ export default function MainPager() {
             size={23}
             color={
               currentPage === 4
-                ? '#111827'
+                ? tabIconColor
                 : '#9CA3AF'
             }
           />
@@ -295,7 +283,7 @@ export default function MainPager() {
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F7F9',
@@ -307,29 +295,6 @@ const styles = StyleSheet.create({
 
   page: {
     flex: 1,
-  },
-
-  e5Status: {
-    minHeight: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-
-  e5StatusReady: {
-    backgroundColor: '#DCFCE7',
-  },
-
-  e5StatusError: {
-    backgroundColor: '#FEE2E2',
-  },
-
-  e5StatusText: {
-    color: '#374151',
-    fontSize: 11,
-    fontWeight: '700',
   },
 
   tabBar: {

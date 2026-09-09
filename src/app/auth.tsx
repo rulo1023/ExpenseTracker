@@ -15,8 +15,10 @@ import {
 
 import { useAuth } from '../context/auth-context';
 import { supabase } from '../lib/supabase';
+import { useAppStyles } from '../lib/themed-styles';
 
 export default function AuthScreen() {
+  const styles = useAppStyles(lightStyles);
   const { session } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -188,7 +190,7 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',

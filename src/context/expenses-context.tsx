@@ -7,6 +7,10 @@
 } from 'react';
 
 import { useAuth } from './auth-context';
+import {
+  CurrencyCode,
+  useAppSettings,
+} from './app-settings-context';
 import { supabase } from '../lib/supabase';
 
 export type ExpenseStatus =
@@ -23,6 +27,7 @@ export type Expense = {
   id: string;
   description: string;
   amount: number;
+  currency: CurrencyCode;
   categoryId: string;
   transactionDate: Date;
   status: ExpenseStatus;
@@ -33,6 +38,7 @@ export type Expense = {
 export type ExpenseInput = {
   description: string;
   amount: number;
+  currency?: CurrencyCode;
   categoryId: string;
   transactionDate?: Date;
   status?: ExpenseStatus;
@@ -69,6 +75,7 @@ function mapExpense(row: any): Expense {
     id: row.id,
     description: row.description,
     amount: Number(row.amount),
+    currency: (row.currency ?? 'EUR') as CurrencyCode,
     categoryId: row.category_id,
     transactionDate:
       new Date(row.transaction_date),
@@ -87,6 +94,12 @@ export function ExpensesProvider({
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
+  const {
+    inputCurrency,
+    displayCurrency,
+    convertAmount,
+    refreshRates,
+  } = useAppSettings();
 
   const [expenses, setExpenses] =
     useState<Expense[]>([]);
@@ -102,6 +115,15 @@ export function ExpensesProvider({
 
     void loadExpenses();
   }, [user?.id]);
+
+  useEffect(() => {
+    const currencies = Array.from(
+      new Set(expenses.map((expense) => expense.currency))
+    );
+    if (currencies.length > 0) {
+      void refreshRates(currencies);
+    }
+  }, [displayCurrency, expenses]);
 
   async function loadExpenses() {
     if (!user) {
@@ -147,6 +169,7 @@ export function ExpensesProvider({
   async function addExpense({
     description,
     amount,
+    currency = inputCurrency,
     categoryId,
     transactionDate = new Date(),
     status = 'completed',
@@ -169,7 +192,7 @@ export function ExpensesProvider({
         description:
           description.trim(),
         amount,
-        currency: 'EUR',
+        currency,
         transaction_date:
           transactionDate.toISOString(),
         status,
@@ -195,6 +218,7 @@ export function ExpensesProvider({
     {
       description,
       amount,
+      currency = inputCurrency,
       categoryId,
       transactionDate = new Date(),
       status = 'completed',
@@ -217,6 +241,7 @@ export function ExpensesProvider({
         description:
           description.trim(),
         amount,
+        currency,
         transaction_date:
           transactionDate.toISOString(),
         status,
@@ -288,10 +313,13 @@ export function ExpensesProvider({
           .reduce(
             (sum, expense) =>
               sum +
-              expense.amount,
+              convertAmount(
+                expense.amount,
+                expense.currency
+              ),
             0
           ),
-      [expenses]
+      [convertAmount, expenses]
     );
 
   return (

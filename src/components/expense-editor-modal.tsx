@@ -14,12 +14,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from './category-picker-modal';
+import { currencyInfo } from '../context/app-settings-context';
 import { useCategories } from '../context/categories-context';
 import {
   Expense,
   useExpenses,
 } from '../context/expenses-context';
 import { useFeedback } from '../context/feedback-context';
+import { useAppStyles } from '../lib/themed-styles';
 
 type ExpenseEditorModalProps = {
   expense: Expense | null;
@@ -44,6 +46,7 @@ export default function ExpenseEditorModal({
   expense,
   onClose,
 }: ExpenseEditorModalProps) {
+  const styles = useAppStyles(lightStyles);
   const { updateExpense, deleteExpense } =
     useExpenses();
   const { getCategoryById } = useCategories();
@@ -109,6 +112,7 @@ export default function ExpenseEditorModal({
       await updateExpense(expense.id, {
         description,
         amount: parsedAmount,
+        currency: expense.currency,
         categoryId,
         transactionDate,
         status: future ? 'planned' : 'completed',
@@ -214,7 +218,11 @@ export default function ExpenseEditorModal({
             <Text style={styles.label}>Importe</Text>
 
             <View style={styles.amountInputContainer}>
-              <Text style={styles.currencySymbol}>€</Text>
+              <Text style={styles.currencySymbol}>
+                {expense
+                  ? currencyInfo(expense.currency).symbol
+                  : '€'}
+              </Text>
 
               <TextInput
                 style={styles.amountInput}
@@ -356,7 +364,7 @@ export default function ExpenseEditorModal({
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',

@@ -18,6 +18,7 @@ import {
   Category,
   useCategories,
 } from '../../context/categories-context';
+import { useAppStyles } from '../../lib/themed-styles';
 
 const COLORS = [
   '#EF4444',
@@ -172,6 +173,7 @@ const ICONS = [
 ] as const;
 
 export default function CategoriesScreen() {
+  const styles = useAppStyles(lightStyles);
   const {
     categories,
     addCategory,
@@ -689,7 +691,7 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles =
+const lightStyles =
   StyleSheet.create({
     safeArea: {
       flex: 1,

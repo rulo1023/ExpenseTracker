@@ -7,6 +7,9 @@ import Svg, {
   Circle,
 } from 'react-native-svg';
 
+import { CurrencyCode } from '../context/app-settings-context';
+import { useAppStyles } from '../lib/themed-styles';
+
 type DonutItem = {
   value: number;
   color: string;
@@ -15,6 +18,7 @@ type DonutItem = {
 type Props = {
   items: DonutItem[];
   total: number;
+  currency: CurrencyCode;
 };
 
 const SIZE = 210;
@@ -28,7 +32,9 @@ const CIRCUMFERENCE =
 export default function ExpenseDonut({
   items,
   total,
+  currency,
 }: Props) {
+  const styles = useAppStyles(lightStyles);
   let cumulative = 0;
 
   return (
@@ -117,8 +123,7 @@ export default function ExpenseDonut({
             {
               style:
                 'currency',
-              currency:
-                'EUR',
+              currency,
             }
           ).format(total)}
         </Text>
@@ -133,7 +138,7 @@ export default function ExpenseDonut({
   );
 }
 
-const styles =
+const lightStyles =
   StyleSheet.create({
     container: {
       width: SIZE,

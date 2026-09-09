@@ -6,8 +6,10 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../context/auth-context';
+import { useAppStyles } from '../lib/themed-styles';
 
 export default function IndexScreen() {
+  const styles = useAppStyles(lightStyles);
   const { session, loading } = useAuth();
 
   if (loading) {
@@ -25,7 +27,7 @@ export default function IndexScreen() {
   return <Redirect href="/auth" />;
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',

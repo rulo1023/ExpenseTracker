@@ -12,12 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCategories } from '../context/categories-context';
+import { useAppStyles } from '../lib/themed-styles';
 
 type CategoryPickerModalProps = {
   visible: boolean;
   selectedCategoryId: string | null;
   title?: string;
+  allowClear?: boolean;
+  clearLabel?: string;
   onSelect: (categoryId: string) => void;
+  onClear?: () => void;
   onClose: () => void;
 };
 
@@ -25,9 +29,13 @@ export default function CategoryPickerModal({
   visible,
   selectedCategoryId,
   title = 'Elegir categoría',
+  allowClear = false,
+  clearLabel = 'Todas las categorías',
   onSelect,
+  onClear,
   onClose,
 }: CategoryPickerModalProps) {
+  const styles = useAppStyles(lightStyles);
   const { categories } = useCategories();
   const [search, setSearch] = useState('');
 
@@ -116,6 +124,53 @@ export default function CategoryPickerModal({
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
         >
+          {allowClear && (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[
+                styles.card,
+                selectedCategoryId === null &&
+                  styles.clearCardSelected,
+              ]}
+              onPress={() => {
+                onClear?.();
+                onClose();
+              }}
+            >
+              <View style={styles.clearIcon}>
+                <Ionicons
+                  name="albums-outline"
+                  size={22}
+                  color="#6366F1"
+                />
+              </View>
+
+              <View style={styles.categoryText}>
+                <Text style={styles.categoryName}>
+                  {clearLabel}
+                </Text>
+
+                <Text style={styles.description}>
+                  No limitar los resultados por categoría.
+                </Text>
+              </View>
+
+              <Ionicons
+                name={
+                  selectedCategoryId === null
+                    ? 'checkmark-circle'
+                    : 'chevron-forward'
+                }
+                size={selectedCategoryId === null ? 22 : 18}
+                color={
+                  selectedCategoryId === null
+                    ? '#6366F1'
+                    : '#D1D5DB'
+                }
+              />
+            </TouchableOpacity>
+          )}
+
           {filteredCategories.map((category) => {
             const selected =
               category.id === selectedCategoryId;
@@ -200,7 +255,7 @@ export default function CategoryPickerModal({
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',
@@ -277,6 +332,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+
+  clearCardSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#EEF2FF',
+  },
+
+  clearIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   icon: {

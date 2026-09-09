@@ -16,6 +16,10 @@ import ExpenseDonut from '../expense-donut';
 import ExpenseEditorModal from '../expense-editor-modal';
 
 import {
+  formatCurrencyAmount,
+  useAppSettings,
+} from '../../context/app-settings-context';
+import {
   Category,
   useCategories,
 } from '../../context/categories-context';
@@ -27,6 +31,7 @@ import {
   SummaryPeriod,
   usePreferences,
 } from '../../context/preferences-context';
+import { useAppStyles } from '../../lib/themed-styles';
 
 type HomeScreenProps = {
   onAddExpense: () => void;
@@ -111,16 +116,6 @@ function getNaturalRange(
   return { start, end };
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(
-    'es-ES',
-    {
-      style: 'currency',
-      currency: 'EUR',
-    }
-  ).format(value);
-}
-
 function formatRange(
   start: Date,
   endExclusive: Date
@@ -166,7 +161,14 @@ type CategoryBreakdown = Category & {
 export default function HomeScreen({
   onAddExpense,
 }: HomeScreenProps) {
+  const styles = useAppStyles(lightStyles);
   const { expenses } = useExpenses();
+  const {
+    convertAmount,
+    displayCurrency,
+    formatMoney,
+    isDark,
+  } = useAppSettings();
 
   const {
     categories,
@@ -274,7 +276,10 @@ export default function HomeScreen({
     periodExpenses.reduce(
       (sum, expense) =>
         sum +
-        expense.amount,
+        convertAmount(
+          expense.amount,
+          expense.currency
+        ),
       0
     );
 
@@ -299,7 +304,10 @@ export default function HomeScreen({
                 expense
               ) =>
                 sum +
-                expense.amount,
+                convertAmount(
+                  expense.amount,
+                  expense.currency
+                ),
               0
             ),
         };
@@ -490,7 +498,7 @@ export default function HomeScreen({
               <Ionicons
                 name="chevron-back"
                 size={22}
-                color="#111827"
+                color={isDark ? '#F9FAFB' : '#111827'}
               />
             </TouchableOpacity>
           )}
@@ -519,7 +527,7 @@ export default function HomeScreen({
               <Ionicons
                 name="chevron-forward"
                 size={22}
-                color="#111827"
+                color={isDark ? '#F9FAFB' : '#111827'}
               />
             </TouchableOpacity>
           )}
@@ -532,6 +540,7 @@ export default function HomeScreen({
         >
           <ExpenseDonut
             total={total}
+            currency={displayCurrency}
             items={breakdown.map(
               (item) => ({
                 value:
@@ -626,7 +635,8 @@ export default function HomeScreen({
                       }
                     >
                       {formatMoney(
-                        item.value
+                        item.value,
+                        displayCurrency
                       )}
                     </Text>
 
@@ -884,7 +894,8 @@ export default function HomeScreen({
                       }
                     >
                       {formatMoney(
-                        selectedCategory.value
+                        selectedCategory.value,
+                        displayCurrency
                       )}
                     </Text>
                   </View>
@@ -931,15 +942,22 @@ export default function HomeScreen({
                         </Text>
                       </View>
 
-                      <Text
-                        style={
-                          styles.expenseAmount
-                        }
-                      >
-                        {formatMoney(
-                          expense.amount
+                      <View style={styles.expenseAmountGroup}>
+                        <Text style={styles.expenseAmount}>
+                          {formatMoney(
+                            expense.amount,
+                            expense.currency
+                          )}
+                        </Text>
+                        {expense.currency !== displayCurrency && (
+                          <Text style={styles.expenseOriginalAmount}>
+                            {formatCurrencyAmount(
+                              expense.amount,
+                              expense.currency
+                            )}
+                          </Text>
                         )}
-                      </Text>
+                      </View>
                     </TouchableOpacity>
                   )
                 )}
@@ -974,7 +992,7 @@ export default function HomeScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const lightStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F7F9',
@@ -1236,6 +1254,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+  },
+  expenseAmountGroup: {
+    alignItems: 'flex-end',
+  },
+  expenseOriginalAmount: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#9CA3AF',
   },
 
   closeButton: {

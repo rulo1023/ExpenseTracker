@@ -83,30 +83,30 @@ CORTO PLAZO
     [x] Feedback al seleccionar
     [x] Mejor manejo de errores
 
-MOVIMIENTOS
+GASTOS
 
-[ ] Buscador de movimientos
-    [ ] Buscar por descripción
-    [ ] Buscar por categoría
-    [ ] Buscar por importe
+[x] Buscador de gastos
+    [x] Buscar por descripción
+    [x] Buscar por categoría
+    [x] Buscar por importe
 
-[ ] Filtros de movimientos
-    [ ] Categoría
-    [ ] Periodo
-    [ ] Completado / previsto
-    [ ] Origen manual / texto / voz / recurrente
-    [ ] Rango de importe
+[x] Filtros de gastos
+    [x] Categoría
+    [x] Periodo
+    [x] Completado / previsto
+    [x] Origen manual / texto / voz / recurrente
+    [x] Rango de importe
 
-[ ] Orden de movimientos
-    [ ] Más reciente
-    [ ] Más antiguo
-    [ ] Mayor importe
-    [ ] Menor importe
+[x] Orden de gastos
+    [x] Más reciente
+    [x] Más antiguo
+    [x] Mayor importe
+    [x] Menor importe
 
-[ ] Navegación temporal
-    [ ] Saltar a mes
-    [ ] Filtros rápidos
-    [ ] Hoy / esta semana / este mes
+[x] Navegación temporal
+    [x] Saltar a mes
+    [x] Filtros rápidos
+    [x] Hoy / esta semana / este mes
 
 CATEGORÍAS
 
@@ -217,15 +217,17 @@ PRESUPUESTOS
 UX / PRODUCTO
 
 [ ] Ajustes
-    [ ] Moneda
+    [x] Moneda de entrada
+    [x] Moneda mostrada
+    [x] Conversión actualizada y caché sin conexión
     [ ] Periodo por defecto
     [ ] Primer día de semana
-    [ ] Apariencia
+    [x] Apariencia claro / oscuro
     [ ] Configuración IA local
     [ ] Descargar/eliminar modelo en el futuro
 
-[ ] Tema oscuro
-    [ ] Adaptar correctamente todos los componentes
+[x] Tema oscuro
+    [x] Adaptar correctamente todos los componentes
 
 [ ] Haptics
     [ ] Guardar
