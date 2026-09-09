@@ -218,6 +218,7 @@ UX / PRODUCTO
 
 [ ] Ajustes
     [x] Moneda de entrada
+    [x] Divisa seleccionable en cada gasto
     [x] Moneda mostrada
     [x] Conversión actualizada y caché sin conexión
     [ ] Periodo por defecto

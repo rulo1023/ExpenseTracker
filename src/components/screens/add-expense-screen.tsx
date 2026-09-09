@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from '../category-picker-modal';
+import CurrencyPickerModal from '../currency-picker-modal';
 import {
   currencyInfo,
   useAppSettings,
@@ -73,6 +74,8 @@ export default function AddExpenseScreen() {
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [expenseCurrency, setExpenseCurrency] =
+    useState(inputCurrency);
   const [categoryId, setCategoryId] =
     useState<string | null>(null);
   const [transactionDate, setTransactionDate] =
@@ -80,6 +83,8 @@ export default function AddExpenseScreen() {
   const [showDatePicker, setShowDatePicker] =
     useState(false);
   const [categoryPickerVisible, setCategoryPickerVisible] =
+    useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] =
     useState(false);
   const [suggestedCategoryIds, setSuggestedCategoryIds] =
     useState<string[]>([]);
@@ -102,6 +107,10 @@ export default function AddExpenseScreen() {
     : isYesterday(transactionDate)
       ? 'yesterday'
       : 'other';
+
+  useEffect(() => {
+    setExpenseCurrency(inputCurrency);
+  }, [inputCurrency]);
 
   useEffect(() => {
     const sequence = ++classificationSequence.current;
@@ -206,7 +215,7 @@ export default function AddExpenseScreen() {
       await addExpense({
         description: description.trim(),
         amount: parsedAmount,
-        currency: inputCurrency,
+        currency: expenseCurrency,
         categoryId,
         transactionDate,
         status: planned ? 'planned' : 'completed',
@@ -215,6 +224,7 @@ export default function AddExpenseScreen() {
 
       setDescription('');
       setAmount('');
+      setExpenseCurrency(inputCurrency);
       setCategoryId(null);
       setSuggestedCategoryIds([]);
       setClassificationSource(null);
@@ -283,9 +293,22 @@ export default function AddExpenseScreen() {
               <Text style={styles.label}>Importe</Text>
 
               <View style={styles.amountInputContainer}>
-                <Text style={styles.currencySymbol}>
-                  {currencyInfo(inputCurrency).symbol}
-                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.currencyButton}
+                  onPress={() => setCurrencyPickerVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cambiar divisa del gasto"
+                >
+                  <Text style={styles.currencySymbol}>
+                    {currencyInfo(expenseCurrency).symbol}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={13}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
 
                 <TextInput
                   ref={amountInputRef}
@@ -604,6 +627,14 @@ export default function AddExpenseScreen() {
         onSelect={setCategoryId}
         onClose={() => setCategoryPickerVisible(false)}
       />
+
+      <CurrencyPickerModal
+        visible={currencyPickerVisible}
+        title="Divisa del gasto"
+        selected={expenseCurrency}
+        onSelect={setExpenseCurrency}
+        onClose={() => setCurrencyPickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -686,10 +717,20 @@ const lightStyles = StyleSheet.create({
   },
 
   currencySymbol: {
-    marginRight: 5,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#6B7280',
+  },
+
+  currencyButton: {
+    minWidth: 43,
+    minHeight: 40,
+    marginRight: 4,
+    paddingHorizontal: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
   },
 
   amountInput: {

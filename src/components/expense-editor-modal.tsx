@@ -14,7 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from './category-picker-modal';
-import { currencyInfo } from '../context/app-settings-context';
+import CurrencyPickerModal from './currency-picker-modal';
+import {
+  CurrencyCode,
+  currencyInfo,
+} from '../context/app-settings-context';
 import { useCategories } from '../context/categories-context';
 import {
   Expense,
@@ -55,6 +59,8 @@ export default function ExpenseEditorModal({
   const [description, setDescription] =
     useState('');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] =
+    useState<CurrencyCode>('EUR');
   const [categoryId, setCategoryId] =
     useState<string | null>(null);
   const [transactionDate, setTransactionDate] =
@@ -62,6 +68,8 @@ export default function ExpenseEditorModal({
   const [showDatePicker, setShowDatePicker] =
     useState(false);
   const [categoryPickerVisible, setCategoryPickerVisible] =
+    useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] =
     useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -72,10 +80,12 @@ export default function ExpenseEditorModal({
 
     setDescription(expense.description);
     setAmount(String(expense.amount));
+    setCurrency(expense.currency);
     setCategoryId(expense.categoryId);
     setTransactionDate(expense.transactionDate);
     setShowDatePicker(false);
     setCategoryPickerVisible(false);
+    setCurrencyPickerVisible(false);
   }, [expense]);
 
   const selectedCategory =
@@ -112,7 +122,7 @@ export default function ExpenseEditorModal({
       await updateExpense(expense.id, {
         description,
         amount: parsedAmount,
-        currency: expense.currency,
+        currency,
         categoryId,
         transactionDate,
         status: future ? 'planned' : 'completed',
@@ -218,11 +228,22 @@ export default function ExpenseEditorModal({
             <Text style={styles.label}>Importe</Text>
 
             <View style={styles.amountInputContainer}>
-              <Text style={styles.currencySymbol}>
-                {expense
-                  ? currencyInfo(expense.currency).symbol
-                  : '€'}
-              </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.currencyButton}
+                onPress={() => setCurrencyPickerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Cambiar divisa del gasto"
+              >
+                <Text style={styles.currencySymbol}>
+                  {currencyInfo(currency).symbol}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={14}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
 
               <TextInput
                 style={styles.amountInput}
@@ -360,6 +381,14 @@ export default function ExpenseEditorModal({
         onSelect={setCategoryId}
         onClose={() => setCategoryPickerVisible(false)}
       />
+
+      <CurrencyPickerModal
+        visible={currencyPickerVisible}
+        title="Divisa del gasto"
+        selected={currency}
+        onSelect={setCurrency}
+        onClose={() => setCurrencyPickerVisible(false)}
+      />
     </>
   );
 }
@@ -430,10 +459,20 @@ const lightStyles = StyleSheet.create({
   },
 
   currencySymbol: {
-    marginRight: 10,
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '700',
     color: '#6B7280',
+  },
+
+  currencyButton: {
+    minWidth: 48,
+    minHeight: 42,
+    marginRight: 6,
+    paddingHorizontal: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
   },
 
   amountInput: {

@@ -3,7 +3,6 @@ import Constants from 'expo-constants';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,8 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { E5Status } from '../main-pager';
+import CurrencyPickerModal from '../currency-picker-modal';
 import {
-  CURRENCIES,
   CurrencyCode,
   currencyInfo,
   useAppSettings,
@@ -338,71 +337,6 @@ function ThemeOption({
   );
 }
 
-function CurrencyPickerModal({
-  visible,
-  title,
-  selected,
-  onSelect,
-  onClose,
-}: {
-  visible: boolean;
-  title: string;
-  selected: CurrencyCode;
-  onSelect: (currency: CurrencyCode) => void;
-  onClose: () => void;
-}) {
-  const styles = useAppStyles(lightStyles);
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.modalSafeArea}>
-        <View style={styles.modalHeader}>
-          <View>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <Text style={styles.modalSubtitle}>Elige una divisa habitual.</Text>
-          </View>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={22} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={styles.currencyList}>
-          {CURRENCIES.map((currency) => {
-            const active = currency.code === selected;
-            return (
-              <TouchableOpacity
-                key={currency.code}
-                style={[
-                  styles.currencyRow,
-                  active && styles.currencyRowSelected,
-                ]}
-                onPress={() => onSelect(currency.code)}
-              >
-                <View style={styles.currencySymbolBox}>
-                  <Text style={styles.currencySymbol}>{currency.symbol}</Text>
-                </View>
-                <View style={styles.currencyText}>
-                  <Text style={styles.currencyName}>{currency.name}</Text>
-                  <Text style={styles.currencyCode}>{currency.code}</Text>
-                </View>
-                <Ionicons
-                  name={active ? 'checkmark-circle' : 'chevron-forward'}
-                  size={active ? 22 : 18}
-                  color={active ? '#4F46E5' : '#D1D5DB'}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
 const lightStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   content: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 32 },
@@ -469,48 +403,4 @@ const lightStyles = StyleSheet.create({
   },
   logoutButtonDisabled: { opacity: 0.55 },
   logoutText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },
-  modalSafeArea: { flex: 1, backgroundColor: '#F6F7F9' },
-  modalHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modalTitle: { fontSize: 26, fontWeight: '700', color: '#111827' },
-  modalSubtitle: { marginTop: 4, fontSize: 13, color: '#6B7280' },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currencyList: { paddingHorizontal: 20, paddingBottom: 40, gap: 9 },
-  currencyRow: {
-    minHeight: 64,
-    padding: 11,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  currencyRowSelected: { borderColor: '#818CF8', backgroundColor: '#EEF2FF' },
-  currencySymbolBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currencySymbol: { fontSize: 16, fontWeight: '800', color: '#374151' },
-  currencyText: { flex: 1 },
-  currencyName: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  currencyCode: { marginTop: 3, fontSize: 12, color: '#6B7280' },
 });
