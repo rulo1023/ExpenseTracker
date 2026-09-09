@@ -42,7 +42,6 @@ export default function AddExpenseScreen() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [categorySearch, setCategorySearch] = useState('');
   const [categoryError, setCategoryError] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -51,26 +50,6 @@ export default function AddExpenseScreen() {
 
   const amountInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-
-  const normalizedCategorySearch =
-    categorySearch
-      .trim()
-      .toLocaleLowerCase('es-ES');
-
-  const filteredCategories =
-    categories.filter((category) => {
-      if (!normalizedCategorySearch) {
-        return true;
-      }
-
-      const searchableText =
-        `${category.name} ${category.description}`
-          .toLocaleLowerCase('es-ES');
-
-      return searchableText.includes(
-        normalizedCategorySearch
-      );
-    });
 
   function setToday() {
     setTransactionDate(new Date());
@@ -331,56 +310,8 @@ export default function AddExpenseScreen() {
             </Text>
           )}
 
-          <View style={styles.categorySearch}>
-        <Ionicons
-          name="search-outline"
-          size={20}
-          color="#9CA3AF"
-        />
-
-        <TextInput
-          style={styles.categorySearchInput}
-          value={categorySearch}
-          onChangeText={setCategorySearch}
-          placeholder="Buscar categoría..."
-          placeholderTextColor="#9CA3AF"
-          cursorColor="#4F46E5"
-          selectionColor="#C7D2FE"
-          autoCorrect={false}
-        />
-
-        {categorySearch.length > 0 && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() =>
-              setCategorySearch('')
-            }
-          >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color="#9CA3AF"
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {filteredCategories.length === 0 && (
-        <View style={styles.noCategoriesFound}>
-          <Ionicons
-            name="search-outline"
-            size={24}
-            color="#9CA3AF"
-          />
-
-          <Text style={styles.noCategoriesFoundText}>
-            No encontramos ninguna categoría
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.categoryList}>
-        {filteredCategories.map((category) => {
+          <View style={styles.categoryList}>
+        {categories.map((category) => {
           const selected =
             category.id === categoryId;
 
@@ -644,40 +575,6 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
 
-  categorySearch: {
-    height: 48,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  categorySearchInput: {
-    flex: 1,
-    height: '100%',
-    paddingVertical: 0,
-    fontSize: 14,
-    color: '#111827',
-  },
-
-  noCategoriesFound: {
-    marginBottom: 16,
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-
-  noCategoriesFoundText: {
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
-
   categoryList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -736,9 +633,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-
-
 
 
 
