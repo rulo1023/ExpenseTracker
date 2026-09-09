@@ -1,0 +1,310 @@
+ExpenseTracker - TODO
+
+HECHO
+
+[x] Autenticación con Supabase
+[x] Persistencia de sesión
+[x] Categorías persistentes en Supabase
+[x] Gastos persistentes en Supabase
+[x] Gastos futuros / previstos
+[x] Edición y borrado de gastos
+[x] Resumen por día / semana / mes / año / personalizado
+[x] Gráfico donut por categorías
+[x] Drill-down desde resumen
+[x] Colores e iconos personalizados por categoría
+[x] Selector visual de categorías en Añadir gasto
+[x] Buscador de categorías por nombre + descripción
+[x] Top-3 de categorías sugeridas
+[x] Sugerencias automáticas con debounce
+[x] Arquitectura classifyCategories()
+[x] Fallback heurístico
+[x] Detección Expo Go / development build
+[x] Indicador Heurística / E5 local
+[x] Benchmark E5-small fuera de la app
+[x] Infraestructura inicial E5 / ONNX
+[x] Caché preparada para categorías dinámicas y editables
+[x] Development build preparado vía EAS, sin Android Studio
+
+CORTO PLAZO
+
+[ ] Terminar E5-small real en Android
+    [ ] Probar el development APK
+    [ ] Comprobar tokenizer
+    [ ] Comprobar inferencia ONNX
+    [ ] Verificar Top-3 real
+    [ ] Medir primera carga
+    [ ] Medir inferencias posteriores
+    [ ] Comprobar caché
+    [ ] Comprobar crear / editar / borrar categorías
+    [ ] Asegurar fallback si E5 falla
+
+[ ] Entrada completa por lenguaje natural
+    [ ] Conectar el TextInput
+    [ ] Botón Interpretar
+    [ ] Extraer importe
+    [ ] Extraer fecha
+    [ ] Generar descripción limpia
+    [ ] E5 para categoría
+    [ ] Rellenar formulario
+    [ ] Permitir revisar antes de guardar
+    [ ] Gestionar frases incompletas
+    [ ] Futuro -> gasto previsto
+    [ ] Conservar source: 'text'
+
+[ ] CategoryPicker reutilizable
+    [ ] Sacar toda la lógica de categorías fuera de add-expense-screen.tsx
+    [ ] Modo expanded para Añadir
+    [ ] Modo compact para Editar
+    [ ] Buscador compartido
+    [ ] Top-3 compartido
+    [ ] Iconos/colores compartidos
+
+[ ] Modernizar Editar gasto
+    [ ] Dejar de mostrar el selector antiguo
+    [ ] Mostrar categoría actual como fila compacta
+    [ ] Icono + color + nombre
+    [ ] Pulsar para abrir selector/modal
+    [ ] Buscador dentro
+    [ ] Sugerencias de categoría al editar concepto
+    [ ] Mantener UX rápida
+
+[ ] Pulir Añadir gasto
+    [ ] Mejorar jerarquía visual
+    [ ] Concepto + importe más claros
+    [ ] Sugeridas mejor integradas
+    [ ] Lista de categorías menos larga
+    [ ] Valorar colapsar “Todas las categorías”
+    [ ] Estados de loading
+    [ ] Mejorar foco de teclado
+    [ ] Transiciones suaves
+    [ ] Feedback al seleccionar
+    [ ] Mejor manejo de errores
+
+MOVIMIENTOS
+
+[ ] Buscador de movimientos
+    [ ] Buscar por descripción
+    [ ] Buscar por categoría
+    [ ] Buscar por importe
+
+[ ] Filtros de movimientos
+    [ ] Categoría
+    [ ] Periodo
+    [ ] Completado / previsto
+    [ ] Origen manual / texto / voz / recurrente
+    [ ] Rango de importe
+
+[ ] Orden de movimientos
+    [ ] Más reciente
+    [ ] Más antiguo
+    [ ] Mayor importe
+    [ ] Menor importe
+
+[ ] Navegación temporal
+    [ ] Saltar a mes
+    [ ] Filtros rápidos
+    [ ] Hoy / esta semana / este mes
+
+CATEGORÍAS
+
+[ ] Mejorar gestión de categorías
+    [ ] Favoritos
+    [ ] Orden personalizado
+    [ ] Categorías archivadas
+    [ ] Categorías más utilizadas
+    [ ] Búsqueda en la pestaña Categorías
+    [ ] Contador de gastos por categoría
+
+[ ] Mejorar descripciones para IA
+    [ ] Ayudar al usuario a escribir buenas descripciones
+    [ ] Ejemplos
+    [ ] Sinónimos
+    [ ] Sugerir descripción automáticamente
+
+[ ] Aprendizaje personal
+    [ ] Recordar correcciones del usuario
+    [ ] Ejemplo: Mercadona -> Compra
+    [ ] Ejemplo: Netflix -> Suscripciones
+    [ ] Ejemplo: GAN -> Speedcubing
+    [ ] Usar historial local como señal adicional a E5
+
+RESUMEN / ANALÍTICA
+
+[ ] Comparaciones
+    [ ] Vs periodo anterior
+    [ ] Mes anterior
+    [ ] Año anterior
+    [ ] Variación %
+    [ ] Categorías que más subieron
+
+[ ] Evolución temporal
+    [ ] Gasto diario
+    [ ] Gasto semanal
+    [ ] Gasto mensual
+    [ ] Gráficos de líneas/barras
+
+[ ] Insights
+    [ ] Categoría principal
+    [ ] Gasto medio diario
+    [ ] Días con más gasto
+    [ ] Tendencia
+    [ ] Gastos inusuales
+
+[ ] Detalle de categoría
+    [ ] Evolución
+    [ ] Promedio
+    [ ] Últimos movimientos
+    [ ] Comparación con periodo previo
+
+INGRESOS / FINANZAS GENERALES
+
+[ ] Ingresos
+    [ ] Añadir ingresos
+    [ ] Categorías de ingresos
+    [ ] Ingresos recurrentes
+    [ ] Importar datos históricos
+
+[ ] Balance
+    [ ] Ingresos - gastos
+    [ ] Balance mensual
+    [ ] Balance anual
+    [ ] Ahorro
+
+[ ] Ahorro
+    [ ] Porcentaje de ahorro
+    [ ] Evolución
+    [ ] Objetivos
+
+RECURRENTES
+
+[ ] Gastos recurrentes
+    [ ] Mensual / semanal / anual
+    [ ] Próxima ejecución
+    [ ] Crear gastos previstos
+    [ ] Editar una serie
+    [ ] Pausar
+    [ ] Eliminar
+
+[ ] Suscripciones
+    [ ] Vista específica
+    [ ] Coste mensual equivalente
+    [ ] Coste anual
+    [ ] Próxima renovación
+
+VOZ
+
+[ ] Entrada por voz
+    [ ] Speech-to-text
+    [ ] Reutilizar pipeline de lenguaje natural
+    [ ] Voz -> texto -> parser + E5
+    [ ] Preview antes de guardar
+
+PRESUPUESTOS
+
+[ ] Presupuesto mensual
+    [ ] Global
+    [ ] Por categoría
+    [ ] Progreso
+
+[ ] Avisos
+    [ ] 80 % del presupuesto
+    [ ] Presupuesto agotado
+    [ ] Gasto anormalmente alto
+
+UX / PRODUCTO
+
+[ ] Ajustes
+    [ ] Moneda
+    [ ] Periodo por defecto
+    [ ] Primer día de semana
+    [ ] Apariencia
+    [ ] Configuración IA local
+    [ ] Descargar/eliminar modelo en el futuro
+
+[ ] Tema oscuro
+    [ ] Adaptar correctamente todos los componentes
+
+[ ] Haptics
+    [ ] Guardar
+    [ ] Seleccionar categoría
+    [ ] Borrar
+    [ ] Error
+
+[ ] Animaciones
+    [ ] Sugerencias
+    [ ] Guardado
+    [ ] Modal de categorías
+    [ ] Cambios de periodo
+
+[ ] Estados vacíos
+    [ ] Sin movimientos
+    [ ] Sin categorías
+    [ ] Sin resultados
+    [ ] Sin gastos en periodo
+
+[ ] Onboarding
+    [ ] Explicar qué hace la app
+    [ ] Crear categorías
+    [ ] Explicar lenguaje natural
+    [ ] Explicar privacidad / modelo local
+
+SEGURIDAD / PRODUCCIÓN
+
+[ ] Auth completa
+    [ ] Reactivar confirmación de email
+    [ ] Deep links
+    [ ] Recuperar contraseña
+    [ ] Cambiar contraseña
+    [ ] Cerrar otras sesiones
+
+[ ] Revisión Supabase
+    [ ] RLS
+    [ ] Índices
+    [ ] Constraints
+    [ ] Políticas
+    [ ] Backups
+
+[ ] Privacidad
+    [ ] Explicar que la clasificación E5 es local
+    [ ] Explicar qué datos se sincronizan con Supabase
+    [ ] Política de privacidad
+
+DISTRIBUCIÓN
+
+[ ] Optimizar modelo
+    [ ] Medir tamaño real
+    [ ] Valorar descargarlo bajo demanda
+    [ ] Checksum / versionado
+    [ ] Actualización de modelo
+
+[ ] Android producción
+    [ ] Icono
+    [ ] Splash
+    [ ] Package
+    [ ] Versión
+    [ ] AAB
+    [ ] Play Store
+
+[ ] iOS
+    [ ] Comprobar ONNX
+    [ ] Comprobar E5
+    [ ] Permisos
+    [ ] EAS iOS
+    [ ] App Store
+
+MÁS ADELANTE
+
+[ ] Importar/exportar CSV/Excel
+[ ] Backup/exportación de datos
+[ ] Multi-moneda
+[ ] Gastos compartidos
+[ ] Etiquetas además de categorías
+[ ] Notas
+[ ] Adjuntar ticket/foto
+[ ] OCR de tickets
+[ ] Localización/comercio opcional
+[ ] Widget Android/iOS
+[ ] Atajos para añadir gasto
+[ ] Notificaciones
+[ ] Detección de duplicados
+[ ] Panel de estadísticas avanzado

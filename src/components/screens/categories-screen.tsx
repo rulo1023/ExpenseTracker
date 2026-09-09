@@ -202,6 +202,29 @@ export default function CategoriesScreen() {
   const [saving, setSaving] =
     useState(false);
 
+  const [search, setSearch] =
+    useState('');
+
+  const normalizedSearch =
+    search
+      .trim()
+      .toLocaleLowerCase('es-ES');
+
+  const filteredCategories =
+    categories.filter((category) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const searchableText =
+        `${category.name} ${category.description}`
+          .toLocaleLowerCase('es-ES');
+
+      return searchableText.includes(
+        normalizedSearch
+      );
+    });
+
   function openNew() {
     setEditing(null);
     setName('');
@@ -349,7 +372,7 @@ export default function CategoriesScreen() {
           styles.list
         }
       >
-        {categories.map(
+        {filteredCategories.map(
           (category) => (
             <TouchableOpacity
               key={category.id}
@@ -693,6 +716,30 @@ const styles =
       color: '#6B7280',
     },
 
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+
+    expenseButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+    },
+
+    expenseButtonPlus: {
+      position: 'absolute',
+      right: 7,
+      bottom: 6,
+    },
+
     newButton: {
       width: 44,
       height: 44,
@@ -702,6 +749,27 @@ const styles =
       alignItems: 'center',
       justifyContent:
         'center',
+    },
+
+    searchContainer: {
+      marginHorizontal: 20,
+      marginTop: 18,
+      height: 48,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+
+    searchInput: {
+      flex: 1,
+      height: '100%',
+      fontSize: 15,
+      color: '#111827',
     },
 
     list: {
@@ -892,4 +960,17 @@ const styles =
       fontWeight: '600',
     },
   });
+
+
+
+
+
+
+
+
+
+
+
+
+
 

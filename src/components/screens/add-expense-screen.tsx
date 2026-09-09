@@ -24,6 +24,27 @@ function startOfDay(date: Date) {
   return result;
 }
 
+function isTodayDate(date: Date) {
+  return (
+    startOfDay(date).getTime() ===
+    startOfDay(new Date()).getTime()
+  );
+}
+
+function isYesterdayDate(date: Date) {
+  const yesterday = new Date();
+  yesterday.setDate(
+    yesterday.getDate() - 1
+  );
+
+  return (
+    startOfDay(date).getTime() ===
+    startOfDay(yesterday).getTime()
+  );
+}
+
+
+
 function isFutureDate(date: Date) {
   return startOfDay(date).getTime() > startOfDay(new Date()).getTime();
 }
@@ -45,6 +66,8 @@ export default function AddExpenseScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState('');
   const [suggestedCategoryIds, setSuggestedCategoryIds] = useState<string[]>([]);
+  const [classificationSource, setClassificationSource] =
+    useState<'e5' | 'heuristic' | null>(null);
   const [categoryError, setCategoryError] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -174,6 +197,10 @@ export default function AddExpenseScreen() {
               (item) => item.categoryId
             )
           );
+
+          setClassificationSource(
+            result.source
+          );
         })();
       }, 350);
 
@@ -196,11 +223,10 @@ export default function AddExpenseScreen() {
     setTransactionDate(yesterday);
   }
 
-  function handleDateChange(
-    _event: unknown,
-    selectedDate: Date
-  ) {
-    setTransactionDate(selectedDate);
+  function handleDateChange(_event: unknown, selectedDate?: Date) {
+    if (selectedDate) {
+      setTransactionDate(selectedDate);
+    }
 
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
@@ -258,6 +284,7 @@ export default function AddExpenseScreen() {
       setAmount('');
       setCategoryId(null);
     setSuggestedCategoryIds([]);
+    setClassificationSource(null);
       setTransactionDate(new Date());
       setCategoryError(false);
 
@@ -457,6 +484,34 @@ export default function AddExpenseScreen() {
             <Text style={styles.suggestionsTitle}>
               Sugeridas
             </Text>
+
+            {__DEV__ &&
+              classificationSource && (
+                <View
+                  style={[
+                    styles.classifierBadge,
+                    classificationSource ===
+                    'e5'
+                      ? styles.classifierBadgeE5
+                      : styles.classifierBadgeHeuristic,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.classifierBadgeText,
+                      classificationSource ===
+                      'e5'
+                        ? styles.classifierBadgeTextE5
+                        : styles.classifierBadgeTextHeuristic,
+                    ]}
+                  >
+                    {classificationSource ===
+                    'e5'
+                      ? '🧠 E5 local'
+                      : '⚙️ Heurística'}
+                  </Text>
+                </View>
+              )}
           </View>
 
           <View style={styles.suggestionsList}>
@@ -888,6 +943,34 @@ const styles = StyleSheet.create({
     color: '#4F46E5',
   },
 
+  classifierBadge: {
+    marginLeft: 'auto',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+
+  classifierBadgeE5: {
+    backgroundColor: '#ECFDF5',
+  },
+
+  classifierBadgeHeuristic: {
+    backgroundColor: '#F3F4F6',
+  },
+
+  classifierBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  classifierBadgeTextE5: {
+    color: '#047857',
+  },
+
+  classifierBadgeTextHeuristic: {
+    color: '#6B7280',
+  },
+
   suggestionsList: {
     flexDirection: 'row',
     gap: 8,
@@ -1014,6 +1097,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

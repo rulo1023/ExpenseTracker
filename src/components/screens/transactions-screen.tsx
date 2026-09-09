@@ -1,4 +1,5 @@
 ﻿import DateTimePicker from '@expo/ui/community/datetime-picker';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import {
   Alert,
@@ -17,27 +18,18 @@ import {
   Expense,
   useExpenses,
 } from '../../context/expenses-context';
-import { useCategories } from '../../context/categories-context';
 
-function startOfDay(
-  date: Date
-) {
-  const result =
-    new Date(date);
+import {
+  useCategories,
+} from '../../context/categories-context';
 
-  result.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
   return result;
 }
 
-function formatMoney(
-  value: number
-) {
+function formatMoney(value: number) {
   return new Intl.NumberFormat(
     'es-ES',
     {
@@ -47,9 +39,7 @@ function formatMoney(
   ).format(value);
 }
 
-function formatDate(
-  date: Date
-) {
+function formatDate(date: Date) {
   return new Intl.DateTimeFormat(
     'es-ES',
     {
@@ -60,20 +50,15 @@ function formatDate(
   ).format(date);
 }
 
-function sectionTitle(
-  date: Date
-) {
+function sectionTitle(date: Date) {
   const today =
-    startOfDay(
-      new Date()
-    );
+    startOfDay(new Date());
 
   const yesterday =
     new Date(today);
 
   yesterday.setDate(
-    yesterday.getDate() -
-      1
+    yesterday.getDate() - 1
   );
 
   if (
@@ -112,10 +97,7 @@ export default function TransactionsScreen() {
     getCategoryById,
   } = useCategories();
 
-  const [
-    editing,
-    setEditing,
-  ] =
+  const [editing, setEditing] =
     useState<Expense | null>(
       null
     );
@@ -123,8 +105,7 @@ export default function TransactionsScreen() {
   const [
     description,
     setDescription,
-  ] =
-    useState('');
+  ] = useState('');
 
   const [amount, setAmount] =
     useState('');
@@ -132,36 +113,87 @@ export default function TransactionsScreen() {
   const [
     categoryId,
     setCategoryId,
-  ] =
-    useState('');
+  ] = useState('');
 
   const [
     transactionDate,
     setTransactionDate,
-  ] =
-    useState(new Date());
+  ] = useState(
+    new Date()
+  );
 
   const [
     showDatePicker,
     setShowDatePicker,
-  ] =
-    useState(false);
+  ] = useState(false);
+
+  const [
+    categoryPickerVisible,
+    setCategoryPickerVisible,
+  ] = useState(false);
+
+  const [
+    categorySearch,
+    setCategorySearch,
+  ] = useState('');
+
+  const selectedCategory =
+    getCategoryById(
+      categoryId
+    );
+
+  const normalizedSearch =
+    categorySearch
+      .trim()
+      .toLocaleLowerCase(
+        'es-ES'
+      );
+
+  const filteredCategories =
+    categories.filter(
+      (category) => {
+        if (
+          !normalizedSearch
+        ) {
+          return true;
+        }
+
+        const text =
+          `${category.name} ${category.description}`
+            .toLocaleLowerCase(
+              'es-ES'
+            );
+
+        return text.includes(
+          normalizedSearch
+        );
+      }
+    );
 
   function openExpense(
     expense: Expense
   ) {
     setEditing(expense);
+
     setDescription(
       expense.description
     );
+
     setAmount(
       expense.amount.toString()
     );
+
     setCategoryId(
       expense.categoryId
     );
+
     setTransactionDate(
       expense.transactionDate
+    );
+
+    setCategorySearch('');
+    setCategoryPickerVisible(
+      false
     );
   }
 
@@ -185,7 +217,7 @@ export default function TransactionsScreen() {
     ) {
       Alert.alert(
         'Datos incompletos',
-        'Revisa descripción, importe y categoría.'
+        'Revisa el importe y la categoría.'
       );
 
       return;
@@ -247,9 +279,7 @@ export default function TransactionsScreen() {
                 editing.id
               );
 
-              setEditing(
-                null
-              );
+              setEditing(null);
             },
         },
       ]
@@ -309,9 +339,7 @@ export default function TransactionsScreen() {
     <SafeAreaView
       style={styles.container}
     >
-      <Text
-        style={styles.title}
-      >
+      <Text style={styles.title}>
         Movimientos
       </Text>
 
@@ -324,8 +352,7 @@ export default function TransactionsScreen() {
       <SectionList
         sections={sections}
         keyExtractor={
-          (item) =>
-            item.id
+          (item) => item.id
         }
         contentContainerStyle={
           styles.list
@@ -361,15 +388,38 @@ export default function TransactionsScreen() {
                   styles.cardPlanned,
               ]}
               onPress={() =>
-                openExpense(
-                  item
-                )
+                openExpense(item)
               }
             >
               <View
-                style={{
-                  flex: 1,
-                }}
+                style={[
+                  styles.transactionIcon,
+                  {
+                    backgroundColor:
+                      `${
+                        category?.color ??
+                        '#6366F1'
+                      }18`,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    (
+                      category?.icon ??
+                      'pricetag-outline'
+                    ) as any
+                  }
+                  size={21}
+                  color={
+                    category?.color ??
+                    '#6366F1'
+                  }
+                />
+              </View>
+
+              <View
+                style={{ flex: 1 }}
               >
                 <Text
                   style={
@@ -377,7 +427,9 @@ export default function TransactionsScreen() {
                   }
                 >
                   {
-                    item.description
+                    item.description ||
+                    category?.name ||
+                    'Gasto'
                   }
                 </Text>
 
@@ -397,9 +449,7 @@ export default function TransactionsScreen() {
               </View>
 
               <Text
-                style={
-                  styles.amount
-                }
+                style={styles.amount}
               >
                 {formatMoney(
                   item.amount
@@ -421,25 +471,47 @@ export default function TransactionsScreen() {
         }
       >
         <SafeAreaView
-          style={
-            styles.modalSafe
-          }
+          style={styles.modalSafe}
         >
           <ScrollView
             contentContainerStyle={
               styles.modalContent
             }
+            keyboardShouldPersistTaps="handled"
           >
-            <Text
+            <View
               style={
-                styles.modalTitle
+                styles.modalHeader
               }
             >
-              Editar gasto
-            </Text>
+              <Text
+                style={
+                  styles.modalTitle
+                }
+              >
+                Editar gasto
+              </Text>
 
-            <Text style={styles.label}>
-              Descripción
+              <TouchableOpacity
+                style={
+                  styles.headerClose
+                }
+                onPress={() =>
+                  setEditing(null)
+                }
+              >
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text
+              style={styles.label}
+            >
+              Concepto
             </Text>
 
             <TextInput
@@ -448,38 +520,84 @@ export default function TransactionsScreen() {
               onChangeText={
                 setDescription
               }
+              placeholder="Descripción opcional"
+              placeholderTextColor="#9CA3AF"
             />
 
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Importe
             </Text>
 
-            <TextInput
-              style={styles.input}
-              value={amount}
-              onChangeText={
-                setAmount
+            <View
+              style={
+                styles.amountInputContainer
               }
-              keyboardType="decimal-pad"
-            />
+            >
+              <Text
+                style={
+                  styles.currencySymbol
+                }
+              >
+                €
+              </Text>
 
-            <Text style={styles.label}>
+              <TextInput
+                style={
+                  styles.amountInput
+                }
+                value={amount}
+                onChangeText={
+                  setAmount
+                }
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            <Text
+              style={styles.label}
+            >
               Fecha
             </Text>
 
             <TouchableOpacity
-              style={styles.input}
+              style={
+                styles.selectorRow
+              }
               onPress={() =>
                 setShowDatePicker(
                   true
                 )
               }
             >
-              <Text>
+              <View
+                style={
+                  styles.selectorIconNeutral
+                }
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={21}
+                  color="#4F46E5"
+                />
+              </View>
+
+              <Text
+                style={
+                  styles.selectorText
+                }
+              >
                 {formatDate(
                   transactionDate
                 )}
               </Text>
+
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color="#9CA3AF"
+              />
             </TouchableOpacity>
 
             {showDatePicker && (
@@ -509,60 +627,82 @@ export default function TransactionsScreen() {
               />
             )}
 
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Categoría
             </Text>
 
-            <View
+            <TouchableOpacity
               style={
-                styles.categoryList
+                styles.selectorRow
               }
+              onPress={() => {
+                setCategorySearch('');
+                setCategoryPickerVisible(
+                  true
+                );
+              }}
             >
-              {categories.map(
-                (category) => {
-                  const selected =
-                    category.id ===
-                    categoryId;
+              <View
+                style={[
+                  styles.selectorCategoryIcon,
+                  {
+                    backgroundColor:
+                      `${
+                        selectedCategory?.color ??
+                        '#6366F1'
+                      }18`,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    (
+                      selectedCategory?.icon ??
+                      'pricetag-outline'
+                    ) as any
+                  }
+                  size={22}
+                  color={
+                    selectedCategory?.color ??
+                    '#6366F1'
+                  }
+                />
+              </View>
 
-                  return (
-                    <TouchableOpacity
-                      key={
-                        category.id
-                      }
-                      style={[
-                        styles.categoryChip,
-                        selected && {
-                          backgroundColor:
-                            category.color,
-                          borderColor:
-                            category.color,
-                        },
-                      ]}
-                      onPress={() =>
-                        setCategoryId(
-                          category.id
-                        )
-                      }
-                    >
-                      <Text
-                        style={{
-                          color:
-                            selected
-                              ? '#FFFFFF'
-                              : '#374151',
-                          fontWeight:
-                            '600',
-                        }}
-                      >
-                        {
-                          category.name
-                        }
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }
-              )}
-            </View>
+              <View
+                style={{ flex: 1 }}
+              >
+                <Text
+                  style={
+                    styles.selectorText
+                  }
+                >
+                  {selectedCategory?.name ??
+                    'Seleccionar categoría'}
+                </Text>
+
+                {selectedCategory && (
+                  <Text
+                    style={
+                      styles.selectorDescription
+                    }
+                    numberOfLines={1}
+                  >
+                    {
+                      selectedCategory.description
+                    }
+                  </Text>
+                )}
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color="#9CA3AF"
+              />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={
@@ -589,6 +729,12 @@ export default function TransactionsScreen() {
                 confirmDelete
               }
             >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color="#DC2626"
+              />
+
               <Text
                 style={
                   styles.deleteText
@@ -597,19 +743,236 @@ export default function TransactionsScreen() {
                 Eliminar gasto
               </Text>
             </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal
+        visible={
+          categoryPickerVisible
+        }
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() =>
+          setCategoryPickerVisible(
+            false
+          )
+        }
+      >
+        <SafeAreaView
+          style={
+            styles.categoryModalSafe
+          }
+        >
+          <View
+            style={
+              styles.categoryModalHeader
+            }
+          >
+            <View>
+              <Text
+                style={
+                  styles.categoryModalTitle
+                }
+              >
+                Cambiar categoría
+              </Text>
+
+              <Text
+                style={
+                  styles.categoryModalSubtitle
+                }
+              >
+                Busca o selecciona una categoría.
+              </Text>
+            </View>
 
             <TouchableOpacity
               style={
-                styles.closeButton
+                styles.headerClose
               }
               onPress={() =>
-                setEditing(null)
+                setCategoryPickerVisible(
+                  false
+                )
               }
             >
-              <Text>
-                Cancelar
-              </Text>
+              <Ionicons
+                name="close"
+                size={22}
+                color="#6B7280"
+              />
             </TouchableOpacity>
+          </View>
+
+          <View
+            style={
+              styles.categorySearch
+            }
+          >
+            <Ionicons
+              name="search-outline"
+              size={20}
+              color="#9CA3AF"
+            />
+
+            <TextInput
+              style={
+                styles.categorySearchInput
+              }
+              value={
+                categorySearch
+              }
+              onChangeText={
+                setCategorySearch
+              }
+              placeholder="Buscar categoría..."
+              placeholderTextColor="#9CA3AF"
+            />
+
+            {categorySearch.length >
+              0 && (
+              <TouchableOpacity
+                onPress={() =>
+                  setCategorySearch(
+                    ''
+                  )
+                }
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color="#9CA3AF"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <ScrollView
+            contentContainerStyle={
+              styles.categoryPickerList
+            }
+            keyboardShouldPersistTaps="handled"
+          >
+            {filteredCategories.map(
+              (category) => {
+                const selected =
+                  category.id ===
+                  categoryId;
+
+                return (
+                  <TouchableOpacity
+                    key={
+                      category.id
+                    }
+                    style={[
+                      styles.categoryPickerCard,
+                      selected && {
+                        borderColor:
+                          category.color,
+                        backgroundColor:
+                          `${category.color}0D`,
+                      },
+                    ]}
+                    onPress={() => {
+                      setCategoryId(
+                        category.id
+                      );
+
+                      setCategoryPickerVisible(
+                        false
+                      );
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.categoryPickerIcon,
+                        {
+                          backgroundColor:
+                            `${category.color}18`,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          category.icon as any
+                        }
+                        size={23}
+                        color={
+                          category.color
+                        }
+                      />
+                    </View>
+
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text
+                        style={
+                          styles.categoryPickerName
+                        }
+                      >
+                        {
+                          category.name
+                        }
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.categoryPickerDescription
+                        }
+                        numberOfLines={1}
+                      >
+                        {
+                          category.description
+                        }
+                      </Text>
+                    </View>
+
+                    {selected ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={
+                          category.color
+                        }
+                      />
+                    ) : (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color="#D1D5DB"
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              }
+            )}
+
+            {filteredCategories.length ===
+              0 && (
+              <View
+                style={
+                  styles.emptySearch
+                }
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={28}
+                  color="#9CA3AF"
+                />
+
+                <Text
+                  style={
+                    styles.emptySearchText
+                  }
+                >
+                  No encontramos ninguna categoría.
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -657,17 +1020,26 @@ const styles =
 
     card: {
       marginBottom: 9,
-      padding: 17,
+      padding: 15,
       flexDirection: 'row',
       alignItems: 'center',
       borderRadius: 16,
       backgroundColor:
         '#FFFFFF',
+      gap: 12,
     },
 
     cardPlanned: {
       backgroundColor:
         '#FFF7ED',
+    },
+
+    transactionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     description: {
@@ -699,48 +1071,114 @@ const styles =
       paddingBottom: 60,
     },
 
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent:
+        'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+
     modalTitle: {
       fontSize: 28,
       fontWeight: '700',
       color: '#111827',
-      marginBottom: 20,
+    },
+
+    headerClose: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor:
+        '#E5E7EB',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     label: {
-      marginTop: 14,
-      marginBottom: 7,
+      marginTop: 18,
+      marginBottom: 8,
       fontSize: 14,
       fontWeight: '600',
       color: '#374151',
     },
 
     input: {
-      minHeight: 52,
-      paddingHorizontal: 15,
-      justifyContent:
-        'center',
-      borderRadius: 13,
+      minHeight: 54,
+      paddingHorizontal: 16,
+      borderRadius: 14,
       backgroundColor:
         '#FFFFFF',
       fontSize: 16,
       color: '#111827',
     },
 
-    categoryList: {
+    amountInputContainer: {
+      minHeight: 56,
+      paddingHorizontal: 16,
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-
-    categoryChip: {
-      paddingHorizontal: 13,
-      paddingVertical: 10,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor:
-        '#D1D5DB',
+      alignItems: 'center',
+      borderRadius: 14,
       backgroundColor:
         '#FFFFFF',
+    },
+
+    currencySymbol: {
+      marginRight: 10,
+      fontSize: 19,
+      fontWeight: '700',
+      color: '#6B7280',
+    },
+
+    amountInput: {
+      flex: 1,
+      height: 56,
+      fontSize: 21,
+      fontWeight: '700',
+      color: '#111827',
+    },
+
+    selectorRow: {
+      minHeight: 66,
+      padding: 12,
+      borderRadius: 15,
+      backgroundColor:
+        '#FFFFFF',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 11,
+    },
+
+    selectorIconNeutral: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor:
+        '#EEF2FF',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    selectorCategoryIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    selectorText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#111827',
+    },
+
+    selectorDescription: {
+      marginTop: 3,
+      paddingRight: 10,
+      fontSize: 12,
+      color: '#6B7280',
     },
 
     saveButton: {
@@ -754,6 +1192,7 @@ const styles =
 
     saveText: {
       color: '#FFFFFF',
+      fontSize: 15,
       fontWeight: '700',
     },
 
@@ -762,9 +1201,12 @@ const styles =
       paddingVertical: 15,
       borderRadius: 14,
       alignItems: 'center',
+      justifyContent: 'center',
       borderWidth: 1,
       borderColor:
         '#FCA5A5',
+      flexDirection: 'row',
+      gap: 7,
     },
 
     deleteText: {
@@ -772,11 +1214,110 @@ const styles =
       fontWeight: '600',
     },
 
-    closeButton: {
-      marginTop: 12,
-      paddingVertical: 15,
+    categoryModalSafe: {
+      flex: 1,
+      backgroundColor:
+        '#F6F7F9',
+    },
+
+    categoryModalHeader: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
+      flexDirection: 'row',
+      justifyContent:
+        'space-between',
       alignItems: 'center',
     },
+
+    categoryModalTitle: {
+      fontSize: 26,
+      fontWeight: '700',
+      color: '#111827',
+    },
+
+    categoryModalSubtitle: {
+      marginTop: 4,
+      fontSize: 13,
+      color: '#6B7280',
+    },
+
+    categorySearch: {
+      marginHorizontal: 20,
+      height: 48,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor:
+        '#FFFFFF',
+      borderWidth: 1,
+      borderColor:
+        '#E5E7EB',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+
+    categorySearchInput: {
+      flex: 1,
+      height: '100%',
+      fontSize: 15,
+      color: '#111827',
+    },
+
+    categoryPickerList: {
+      padding: 20,
+      paddingBottom: 60,
+      gap: 9,
+    },
+
+    categoryPickerCard: {
+      minHeight: 66,
+      padding: 12,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor:
+        'transparent',
+      backgroundColor:
+        '#FFFFFF',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+
+    categoryPickerIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    categoryPickerName: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#111827',
+    },
+
+    categoryPickerDescription: {
+      marginTop: 3,
+      fontSize: 12,
+      color: '#6B7280',
+    },
+
+    emptySearch: {
+      paddingVertical: 50,
+      alignItems: 'center',
+      gap: 9,
+    },
+
+    emptySearchText: {
+      fontSize: 14,
+      color: '#9CA3AF',
+    },
   });
+
+
+
+
 
 

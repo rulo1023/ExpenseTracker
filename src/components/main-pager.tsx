@@ -1,4 +1,5 @@
-﻿import { useRef, useState } from 'react';
+﻿import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -6,35 +7,12 @@ import {
   View,
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
-import HomeScreen from './screens/home-screen';
-import TransactionsScreen from './screens/transactions-screen';
 import AddExpenseScreen from './screens/add-expense-screen';
 import CategoriesScreen from './screens/categories-screen';
-
-const tabs = [
-  {
-    label: 'Resumen',
-    icon: 'home-outline',
-    activeIcon: 'home',
-  },
-  {
-    label: 'Movimientos',
-    icon: 'receipt-outline',
-    activeIcon: 'receipt',
-  },
-  {
-    label: 'Añadir',
-    icon: 'add-circle-outline',
-    activeIcon: 'add-circle',
-  },
-  {
-    label: 'Categorías',
-    icon: 'grid-outline',
-    activeIcon: 'grid',
-  },
-] as const;
+import HomeScreen from './screens/home-screen';
+import SettingsScreen from './screens/settings-screen';
+import TransactionsScreen from './screens/transactions-screen';
 
 export default function MainPager() {
   const pagerRef = useRef<PagerView>(null);
@@ -51,7 +29,9 @@ export default function MainPager() {
         style={styles.pager}
         initialPage={0}
         onPageSelected={(event) => {
-          setCurrentPage(event.nativeEvent.position);
+          setCurrentPage(
+            event.nativeEvent.position
+          );
         }}
       >
         <View
@@ -60,7 +40,9 @@ export default function MainPager() {
           collapsable={false}
         >
           <HomeScreen
-            onAddExpense={() => goToPage(2)}
+            onAddExpense={() =>
+              goToPage(2)
+            }
           />
         </View>
 
@@ -87,44 +69,169 @@ export default function MainPager() {
         >
           <CategoriesScreen />
         </View>
+
+        <View
+          key="settings"
+          style={styles.page}
+          collapsable={false}
+        >
+          <SettingsScreen />
+        </View>
       </PagerView>
 
       <View style={styles.tabBar}>
-        {tabs.map((tab, index) => {
-          const active = currentPage === index;
+        <Pressable
+          style={styles.tab}
+          onPress={() =>
+            goToPage(0)
+          }
+        >
+          <Ionicons
+            name={
+              currentPage === 0
+                ? 'home'
+                : 'home-outline'
+            }
+            size={23}
+            color={
+              currentPage === 0
+                ? '#111827'
+                : '#9CA3AF'
+            }
+          />
 
-          return (
-            <Pressable
-              key={tab.label}
-              style={styles.tab}
-              onPress={() => goToPage(index)}
-            >
-              <Ionicons
-                name={
-                  active
-                    ? tab.activeIcon
-                    : tab.icon
-                }
-                size={23}
-                color={
-                  active
-                    ? '#111827'
-                    : '#9CA3AF'
-                }
-              />
+          <Text
+            style={[
+              styles.tabLabel,
+              currentPage === 0 &&
+                styles.tabLabelActive,
+            ]}
+          >
+            Resumen
+          </Text>
+        </Pressable>
 
-              <Text
-                style={[
-                  styles.tabLabel,
-                  active &&
-                    styles.tabLabelActive,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <Pressable
+          style={styles.tab}
+          onPress={() =>
+            goToPage(1)
+          }
+        >
+          <Ionicons
+            name={
+              currentPage === 1
+                ? 'receipt'
+                : 'receipt-outline'
+            }
+            size={23}
+            color={
+              currentPage === 1
+                ? '#111827'
+                : '#9CA3AF'
+            }
+          />
+
+          <Text
+            style={[
+              styles.tabLabel,
+              currentPage === 1 &&
+                styles.tabLabelActive,
+            ]}
+          >
+            Movimientos
+          </Text>
+        </Pressable>
+
+        <View style={styles.addTab}>
+          <Pressable
+            style={[
+              styles.addButton,
+              currentPage === 2 &&
+                styles.addButtonActive,
+            ]}
+            onPress={() =>
+              goToPage(2)
+            }
+          >
+            <Ionicons
+              name="add"
+              size={33}
+              color="#FFFFFF"
+            />
+          </Pressable>
+
+          <Text
+            style={[
+              styles.addLabel,
+              currentPage === 2 &&
+                styles.addLabelActive,
+            ]}
+          >
+            Añadir
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.tab}
+          onPress={() =>
+            goToPage(3)
+          }
+        >
+          <Ionicons
+            name={
+              currentPage === 3
+                ? 'grid'
+                : 'grid-outline'
+            }
+            size={23}
+            color={
+              currentPage === 3
+                ? '#111827'
+                : '#9CA3AF'
+            }
+          />
+
+          <Text
+            style={[
+              styles.tabLabel,
+              currentPage === 3 &&
+                styles.tabLabelActive,
+            ]}
+          >
+            Categorías
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.tab}
+          onPress={() =>
+            goToPage(4)
+          }
+        >
+          <Ionicons
+            name={
+              currentPage === 4
+                ? 'settings'
+                : 'settings-outline'
+            }
+            size={23}
+            color={
+              currentPage === 4
+                ? '#111827'
+                : '#9CA3AF'
+            }
+          />
+
+          <Text
+            style={[
+              styles.tabLabel,
+              currentPage === 4 &&
+                styles.tabLabelActive,
+            ]}
+          >
+            Ajustes
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -145,12 +252,14 @@ const styles = StyleSheet.create({
   },
 
   tabBar: {
+    minHeight: 72,
     flexDirection: 'row',
+    alignItems: 'flex-end',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 7,
+    paddingBottom: 9,
   },
 
   tab: {
@@ -162,13 +271,59 @@ const styles = StyleSheet.create({
 
   tabLabel: {
     marginTop: 4,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
     color: '#9CA3AF',
   },
 
   tabLabelActive: {
     color: '#111827',
+    fontWeight: '700',
+  },
+
+  addTab: {
+    flex: 1,
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+
+  addButton: {
+    position: 'absolute',
+    top: -30,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    borderWidth: 5,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+
+    elevation: 8,
+  },
+
+  addButtonActive: {
+    backgroundColor: '#4F46E5',
+  },
+
+  addLabel: {
+    marginTop: 4,
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+
+  addLabelActive: {
+    color: '#4F46E5',
     fontWeight: '700',
   },
 });
