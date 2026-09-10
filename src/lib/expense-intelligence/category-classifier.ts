@@ -15,6 +15,10 @@ export type {
 let e5UnavailableForSession = false;
 let expoGoFallbackLogged = false;
 
+export function resetE5ClassifierFallback() {
+  e5UnavailableForSession = false;
+}
+
 function normalizeText(
   value: string
 ) {

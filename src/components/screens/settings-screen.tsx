@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { E5Status } from '../main-pager';
 import CurrencyPickerModal from '../currency-picker-modal';
 import {
   CurrencyCode,
@@ -20,20 +19,23 @@ import {
 } from '../../context/app-settings-context';
 import { useAuth } from '../../context/auth-context';
 import { useFeedback } from '../../context/feedback-context';
+import { useConnectivity } from '../../context/connectivity-context';
+import { E5Status, useE5Model } from '../../context/e5-model-context';
 import { useAppStyles } from '../../lib/themed-styles';
 
 type SettingsScreenProps = {
-  e5Status: E5Status;
   onClose?: () => void;
 };
 
 type CurrencyPickerMode = 'input' | 'display' | null;
 
-function e5Description(status: E5Status) {
+function e5Description(status: E5Status, progress: number) {
   if (status === 'ready') return 'Modelo cargado y listo para clasificar';
   if (status === 'error') return 'No disponible · se está usando la heurística';
-  if (status === 'expo-go') return 'Expo Go · disponible en la development build';
-  return 'Preparando tokenizer y modelo local…';
+  if (status === 'expo-go') return 'Disponible en la aplicación instalada';
+  if (status === 'downloading') return `Descargando el modelo en el dispositivo · ${Math.round(progress * 100)}%`;
+  if (status === 'loading') return 'Descarga completa · iniciando el modelo…';
+  return 'Comprobando el modelo local…';
 }
 
 function e5Colors(status: E5Status) {
@@ -47,12 +49,17 @@ function e5Colors(status: E5Status) {
 }
 
 export default function SettingsScreen({
-  e5Status,
   onClose,
 }: SettingsScreenProps) {
   const styles = useAppStyles(lightStyles);
   const { user, signOut } = useAuth();
   const { showFeedback } = useFeedback();
+  const { status: connectivityStatus, retry: retryConnectivity } = useConnectivity();
+  const {
+    status: e5Status,
+    progress: e5Progress,
+    retry: retryE5,
+  } = useE5Model();
   const {
     inputCurrency,
     displayCurrency,
@@ -201,16 +208,22 @@ export default function SettingsScreen({
           />
         </View>
 
-        <Text style={styles.sectionTitle}>IA local</Text>
+        <Text style={styles.sectionTitle}>Categorización</Text>
         <View style={styles.card}>
           <SettingRow
             styles={styles}
             icon={e5Status === 'ready' ? 'checkmark-circle' : 'sparkles-outline'}
             iconColor={modelColors.color}
             iconBackground={modelColors.background}
-            title="Estado de E5"
-            value={e5Description(e5Status)}
+            title="Motor inteligente"
+            value={e5Description(e5Status, e5Progress)}
+            onPress={e5Status === 'error' ? retryE5 : undefined}
           />
+          {e5Status === 'downloading' && (
+            <View style={styles.modelProgressTrack}>
+              <View style={[styles.modelProgressFill, { width: `${Math.round(e5Progress * 100)}%` }]} />
+            </View>
+          )}
           <View style={styles.divider} />
           <SettingRow
             styles={styles}
@@ -224,6 +237,20 @@ export default function SettingsScreen({
 
         <Text style={styles.sectionTitle}>Información</Text>
         <View style={styles.card}>
+          <SettingRow
+            styles={styles}
+            icon={connectivityStatus === 'online' ? 'cloud-done-outline' : 'cloud-offline-outline'}
+            iconColor={connectivityStatus === 'online' ? '#047857' : '#A16207'}
+            iconBackground={connectivityStatus === 'online' ? '#DCFCE7' : '#FEF3C7'}
+            title="Conexión"
+            value={connectivityStatus === 'online'
+              ? 'Servicio conectado'
+              : connectivityStatus === 'offline'
+                ? 'Sin conexión · toca para reintentar'
+                : 'Comprobando conexión…'}
+            onPress={connectivityStatus === 'offline' ? retryConnectivity : undefined}
+          />
+          <View style={styles.divider} />
           <SettingRow
             styles={styles}
             icon="information-circle-outline"
@@ -375,6 +402,11 @@ const lightStyles = StyleSheet.create({
   rowTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
   rowValue: { marginTop: 3, fontSize: 12, lineHeight: 17, color: '#6B7280' },
   divider: { height: 1, marginLeft: 54, backgroundColor: '#F0F1F3' },
+  modelProgressTrack: {
+    height: 5, marginLeft: 54, marginRight: 4, marginBottom: 12,
+    overflow: 'hidden', borderRadius: 3, backgroundColor: '#C7D2FE',
+  },
+  modelProgressFill: { height: 5, borderRadius: 3, backgroundColor: '#4F46E5' },
   rateRow: {
     minHeight: 82,
     paddingVertical: 12,

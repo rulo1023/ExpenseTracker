@@ -518,8 +518,8 @@ export default function AddExpenseScreen({
                 {__DEV__ && classificationSource && (
                   <Text style={styles.sourceBadge}>
                     {classificationSource === 'e5'
-                      ? 'E5 local'
-                      : 'Heurística'}
+                      ? 'Inteligente'
+                      : 'Básica'}
                   </Text>
                 )}
               </View>

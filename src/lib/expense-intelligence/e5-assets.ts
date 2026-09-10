@@ -16,6 +16,36 @@ const TOKENIZER_CONFIG_ASSET = require(
 // Este límite permite detectar descargas claramente incompletas.
 const MIN_MODEL_SIZE = 100_000_000;
 
+export type E5AssetState = {
+  phase: 'idle' | 'checking' | 'downloading' | 'downloaded' | 'error';
+  progress: number;
+  downloadedBytes: number;
+  totalBytes: number;
+  message?: string;
+};
+
+let assetState: E5AssetState = {
+  phase: 'idle',
+  progress: 0,
+  downloadedBytes: 0,
+  totalBytes: 0,
+};
+
+const assetListeners = new Set<(state: E5AssetState) => void>();
+
+function emitAssetState(next: E5AssetState) {
+  assetState = next;
+  assetListeners.forEach((listener) => listener(next));
+}
+
+export function subscribeE5AssetState(listener: (state: E5AssetState) => void) {
+  assetListeners.add(listener);
+  listener(assetState);
+  return () => {
+    assetListeners.delete(listener);
+  };
+}
+
 let modelPromise: Promise<string> | null = null;
 
 async function resolveAsset(
@@ -40,6 +70,7 @@ async function resolveAsset(
 }
 
 async function ensureModelDownloaded(): Promise<string> {
+  emitAssetState({ phase: 'checking', progress: 0, downloadedBytes: 0, totalBytes: 0 });
   const root =
     FileSystem.documentDirectory;
 
@@ -75,6 +106,12 @@ async function ensureModelDownloaded(): Promise<string> {
     current.size >=
       MIN_MODEL_SIZE
   ) {
+    emitAssetState({
+      phase: 'downloaded',
+      progress: 1,
+      downloadedBytes: current.size,
+      totalBytes: current.size,
+    });
     if (__DEV__) {
       console.log(
         `[E5] modelo ya instalado (${(
@@ -103,11 +140,29 @@ async function ensureModelDownloaded(): Promise<string> {
     '[E5] descargando modelo (~118 MB)...'
   );
 
-  const result =
-    await FileSystem.downloadAsync(
-      MODEL_URL,
-      modelPath
-    );
+  emitAssetState({ phase: 'downloading', progress: 0, downloadedBytes: 0, totalBytes: 0 });
+
+  const download = FileSystem.createDownloadResumable(
+    MODEL_URL,
+    modelPath,
+    {},
+    ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+      const progress = totalBytesExpectedToWrite > 0
+        ? Math.min(totalBytesWritten / totalBytesExpectedToWrite, 1)
+        : 0;
+      emitAssetState({
+        phase: 'downloading',
+        progress,
+        downloadedBytes: totalBytesWritten,
+        totalBytes: totalBytesExpectedToWrite,
+      });
+    }
+  );
+
+  const result = await download.downloadAsync();
+  if (!result?.uri) {
+    throw new Error('La descarga del modelo E5 no devolvió ningún archivo.');
+  }
 
   const downloaded =
     await FileSystem.getInfoAsync(
@@ -142,6 +197,13 @@ async function ensureModelDownloaded(): Promise<string> {
     ).toFixed(1)} MB)`
   );
 
+  emitAssetState({
+    phase: 'downloaded',
+    progress: 1,
+    downloadedBytes: downloaded.size,
+    totalBytes: downloaded.size,
+  });
+
   return modelPath;
 }
 
@@ -155,6 +217,13 @@ export async function getE5ModelPath() {
     return await modelPromise;
   } catch (error) {
     modelPromise = null;
+    emitAssetState({
+      phase: 'error',
+      progress: 0,
+      downloadedBytes: 0,
+      totalBytes: 0,
+      message: error instanceof Error ? error.message : 'No se pudo descargar E5.',
+    });
     throw error;
   }
 }

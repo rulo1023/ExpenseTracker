@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ExpenseEditorModal from '../expense-editor-modal';
 import IncomeEditorModal from '../income-editor-modal';
 import SettingsButton from '../settings-button';
+import SwipeToDelete from '../swipe-to-delete';
 import ExpenseFiltersModal, {
   countExpenseFilters,
   defaultExpenseFilters,
@@ -27,6 +28,8 @@ import {
 import { useCategories } from '../../context/categories-context';
 import { Expense, useExpenses } from '../../context/expenses-context';
 import { Income, useFinance } from '../../context/finance-context';
+import { useFeedback } from '../../context/feedback-context';
+import { advanceRecurringDate } from '../../lib/recurring-dates';
 import { useAppStyles } from '../../lib/themed-styles';
 
 type QuickPeriod = 'all' | 'today' | 'week' | 'month';
@@ -140,8 +143,9 @@ function sourceLabel(source: Expense['source']) {
 
 export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const styles = useAppStyles(lightStyles);
-  const { expenses } = useExpenses();
-  const { incomes } = useFinance();
+  const { expenses, deleteExpense } = useExpenses();
+  const { incomes, recurring, updateRecurring, deleteIncome } = useFinance();
+  const { showFeedback } = useFeedback();
   const {
     convertAmount,
     displayCurrency,
@@ -329,6 +333,60 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
     setQuickPeriod('all');
     setMonthAnchor(startOfDay(new Date()));
     setFilters(defaultExpenseFilters);
+  }
+
+  async function removeExpense(expense: Expense) {
+    try {
+      const rule = expense.status === 'planned' && expense.recurringId
+        ? recurring.find((item) => item.id === expense.recurringId)
+        : null;
+      if (rule) {
+        await updateRecurring(rule.id, {
+          kind: rule.kind,
+          categoryId: rule.categoryId,
+          description: rule.description,
+          amount: rule.amount,
+          currency: rule.currency,
+          frequency: rule.frequency,
+          nextRunDate: advanceRecurringDate(expense.transactionDate, rule.frequency),
+          active: rule.active,
+        });
+        showFeedback('Gasto omitido. La siguiente repetición sigue programada.');
+      } else {
+        await deleteExpense(expense.id);
+        showFeedback('Gasto eliminado');
+      }
+    } catch (error) {
+      showFeedback('No se pudo eliminar el gasto.', 'error');
+      throw error;
+    }
+  }
+
+  async function removeIncome(income: Income) {
+    try {
+      const rule = income.status === 'planned' && income.recurringId
+        ? recurring.find((item) => item.id === income.recurringId)
+        : null;
+      if (rule) {
+        await updateRecurring(rule.id, {
+          kind: rule.kind,
+          categoryId: rule.categoryId,
+          description: rule.description,
+          amount: rule.amount,
+          currency: rule.currency,
+          frequency: rule.frequency,
+          nextRunDate: advanceRecurringDate(income.transactionDate, rule.frequency),
+          active: rule.active,
+        });
+        showFeedback('Ingreso omitido. La siguiente repetición sigue programada.');
+      } else {
+        await deleteIncome(income.id);
+        showFeedback('Ingreso eliminado');
+      }
+    } catch (error) {
+      showFeedback('No se pudo eliminar el ingreso.', 'error');
+      throw error;
+    }
   }
 
   return (
@@ -545,10 +603,12 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
         renderItem={({ item }) => {
           const category = getCategoryById(item.categoryId);
           return (
+            <SwipeToDelete label="Eliminar gasto" onDelete={() => removeExpense(item)}>
             <TouchableOpacity
               activeOpacity={0.75}
               style={[
                 styles.card,
+                styles.swipeCard,
                 item.status === 'planned' && styles.cardPlanned,
               ]}
               onPress={() => setEditing(item)}
@@ -600,10 +660,11 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                 )}
               </View>
             </TouchableOpacity>
+            </SwipeToDelete>
           );
         }}
       /> : (
-        <IncomeMovements incomes={incomes} onEdit={setEditingIncome} />
+        <IncomeMovements incomes={incomes} onEdit={setEditingIncome} onDelete={removeIncome} />
       )}
 
       {showMonthPicker && (
@@ -636,9 +697,10 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
   );
 }
 
-function IncomeMovements({ incomes, onEdit }: {
+function IncomeMovements({ incomes, onEdit, onDelete }: {
   incomes: Income[];
   onEdit: (income: Income) => void;
+  onDelete: (income: Income) => Promise<void>;
 }) {
   const styles = useAppStyles(lightStyles);
   const { convertAmount, displayCurrency, formatMoney } = useAppSettings();
@@ -709,11 +771,11 @@ function IncomeMovements({ incomes, onEdit }: {
       </View>}
       ListEmptyComponent={<View style={styles.emptyState}><View style={[styles.emptyIcon, styles.incomeEmptyIcon]}><Ionicons name={incomes.length === 0 ? 'wallet-outline' : 'search-outline'} size={30} color="#059669" /></View><Text style={styles.emptyTitle}>{incomes.length === 0 ? 'Aún no hay ingresos' : 'No hay resultados'}</Text><Text style={styles.emptyText}>{incomes.length === 0 ? 'Los ingresos que añadas aparecerán aquí.' : 'Prueba con otra búsqueda o periodo.'}</Text></View>}
       renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
-      renderItem={({ item }) => <TouchableOpacity activeOpacity={0.75} style={[styles.card, item.status === 'planned' && styles.incomePlanned]} onPress={() => onEdit(item)}>
+      renderItem={({ item }) => <SwipeToDelete label="Eliminar ingreso" onDelete={() => onDelete(item)}><TouchableOpacity activeOpacity={0.75} style={[styles.card, styles.swipeCard, item.status === 'planned' && styles.incomePlanned]} onPress={() => onEdit(item)}>
         <View style={[styles.transactionIcon, styles.incomeIcon]}><Ionicons name="arrow-down" size={21} color="#059669" /></View>
         <View style={styles.cardText}><Text style={styles.description} numberOfLines={1}>{item.description || 'Ingreso'}</Text><Text style={styles.cardMeta}>{formatShortDate(item.transactionDate)}{item.status === 'planned' ? ' · Previsto' : ''}{item.source === 'recurring' ? ' · Recurrente' : ''}</Text></View>
         <View style={styles.amountGroup}><Text style={[styles.amount, styles.incomeAmount]}>+{formatMoney(item.amount, item.currency)}</Text>{item.currency !== displayCurrency && <Text style={styles.originalAmount}>{formatCurrencyAmount(item.amount, item.currency)}</Text>}</View>
-      </TouchableOpacity>}
+      </TouchableOpacity></SwipeToDelete>}
       ListFooterComponent={showMonthPicker ? <DateTimePicker value={monthAnchor} mode="date" presentation="dialog" onValueChange={(_event, value) => { setMonthAnchor(new Date(value.getFullYear(), value.getMonth(), 1)); setShowMonthPicker(false); }} onDismiss={() => setShowMonthPicker(false)} /> : null}
     />
   );
@@ -906,6 +968,7 @@ const lightStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
   },
+  swipeCard: { marginBottom: 0 },
   cardPlanned: { backgroundColor: '#FFF7ED' },
   incomePlanned: { backgroundColor: '#ECFDF5' },
   incomeIcon: { backgroundColor: '#ECFDF5' },

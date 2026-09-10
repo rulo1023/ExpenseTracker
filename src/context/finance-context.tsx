@@ -11,6 +11,7 @@ import { CurrencyCode, useAppSettings } from './app-settings-context';
 import { useAuth } from './auth-context';
 import { useExpenses } from './expenses-context';
 import { supabase } from '../lib/supabase';
+import { advanceRecurringDate } from '../lib/recurring-dates';
 
 export type IncomeStatus = 'completed' | 'planned';
 export type RecurringKind = 'expense' | 'income';
@@ -120,14 +121,6 @@ function dateOnly(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function advanceDate(date: Date, frequency: RecurringFrequency) {
-  const next = new Date(date);
-  if (frequency === 'weekly') next.setDate(next.getDate() + 7);
-  if (frequency === 'monthly') next.setMonth(next.getMonth() + 1);
-  if (frequency === 'yearly') next.setFullYear(next.getFullYear() + 1);
-  return next;
-}
-
 function isMissingPlanningSchema(error: any) {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
@@ -188,9 +181,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
           occurrenceDate = rule.nextRunDate.getTime() > pendingDate.getTime()
             ? new Date(rule.nextRunDate)
-            : advanceDate(pendingDate, rule.frequency);
+            : advanceRecurringDate(pendingDate, rule.frequency);
           while (occurrenceDate.getTime() <= today.getTime()) {
-            occurrenceDate = advanceDate(occurrenceDate, rule.frequency);
+            occurrenceDate = advanceRecurringDate(occurrenceDate, rule.frequency);
           }
 
           const { error: advanceError } = await supabase

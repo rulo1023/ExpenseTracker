@@ -1,6 +1,5 @@
 ﻿import Ionicons from '@expo/vector-icons/Ionicons';
-import { isRunningInExpoGo } from 'expo';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
 
+import AppStatusBanners from './app-status-banners';
 import AddExpenseScreen from './screens/add-expense-screen';
 import AddIncomeScreen from './screens/add-income-screen';
 import CategoriesScreen from './screens/categories-screen';
@@ -20,54 +20,14 @@ import TransactionsScreen from './screens/transactions-screen';
 import { useAppSettings } from '../context/app-settings-context';
 import { useAppStyles } from '../lib/themed-styles';
 
-export type E5Status =
-  | 'expo-go'
-  | 'preparing'
-  | 'ready'
-  | 'error';
-
 export default function MainPager() {
   const styles = useAppStyles(lightStyles);
   const { isDark } = useAppSettings();
   const tabIconColor = isDark ? '#F9FAFB' : '#111827';
   const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [e5Status, setE5Status] =
-    useState<E5Status>('preparing');
   const [addMode, setAddMode] = useState<'expense' | 'income'>('expense');
   const [settingsVisible, setSettingsVisible] = useState(false);
-
-  useEffect(() => {
-    // Expo Go no contiene ONNX Runtime.
-    if (isRunningInExpoGo()) {
-      setE5Status('expo-go');
-      return;
-    }
-
-    void import(
-      '../lib/expense-intelligence/e5-engine'
-    )
-      .then(({ initializeE5 }) =>
-        initializeE5()
-      )
-      .then(() => {
-        setE5Status('ready');
-
-        if (__DEV__) {
-          console.log(
-            '[E5] tokenizer y sesión preparados para inferencia'
-          );
-        }
-      })
-      .catch((error) => {
-        setE5Status('error');
-
-        console.warn(
-          '[E5] no se pudo preparar el modelo',
-          error
-        );
-      });
-  }, []);
 
   function goToPage(page: number) {
     pagerRef.current?.setPage(page);
@@ -84,6 +44,7 @@ export default function MainPager() {
         ref={pagerRef}
         style={styles.pager}
         initialPage={0}
+        scrollEnabled={currentPage !== 1}
         onPageSelected={(event) => {
           setCurrentPage(
             event.nativeEvent.position
@@ -146,6 +107,8 @@ export default function MainPager() {
           <CategoriesScreen onOpenSettings={() => setSettingsVisible(true)} />
         </View>
       </PagerView>
+
+      <AppStatusBanners />
 
       <View style={styles.tabBar}>
         <Pressable
@@ -306,7 +269,7 @@ export default function MainPager() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsVisible(false)}
       >
-        <SettingsScreen e5Status={e5Status} onClose={() => setSettingsVisible(false)} />
+        <SettingsScreen onClose={() => setSettingsVisible(false)} />
       </Modal>
     </View>
   );

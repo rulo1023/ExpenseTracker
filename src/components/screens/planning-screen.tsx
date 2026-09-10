@@ -16,12 +16,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from '../category-picker-modal';
 import CurrencyPickerModal from '../currency-picker-modal';
+import ExpenseEditorModal from '../expense-editor-modal';
+import IncomeEditorModal from '../income-editor-modal';
 import SettingsButton from '../settings-button';
 import { CurrencyCode, currencyInfo, formatCurrencyAmount, useAppSettings } from '../../context/app-settings-context';
 import { useCategories } from '../../context/categories-context';
-import { useExpenses } from '../../context/expenses-context';
+import { Expense, useExpenses } from '../../context/expenses-context';
 import { useFeedback } from '../../context/feedback-context';
-import { RecurringFrequency, RecurringKind, RecurringTransaction, useFinance } from '../../context/finance-context';
+import { Income, RecurringFrequency, RecurringKind, RecurringTransaction, useFinance } from '../../context/finance-context';
+import { recurringDatesBetween } from '../../lib/recurring-dates';
 import { useAppStyles } from '../../lib/themed-styles';
 
 function monthStart(date: Date) {
@@ -58,7 +61,12 @@ type UpcomingMovement = {
   date: Date;
   categoryId: string | null;
   recurring: boolean;
+  recurringId: string | null;
 };
+
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddIncome: () => void; onOpenSettings: () => void }) {
   const styles = useAppStyles(lightStyles);
@@ -66,7 +74,7 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
   const { categories, getCategoryById } = useCategories();
   const {
     incomes, budgets, recurring, setupRequired,
-    saveBudget, deleteBudget, addRecurring, updateRecurring, toggleRecurring, deleteRecurring, deleteIncome,
+    saveBudget, deleteBudget, addRecurring, updateRecurring, toggleRecurring, deleteRecurring,
   } = useFinance();
   const { convertAmount, displayCurrency, formatMoney } = useAppSettings();
   const { showFeedback } = useFeedback();
@@ -74,60 +82,128 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
   const [budgetVisible, setBudgetVisible] = useState(false);
   const [recurringVisible, setRecurringVisible] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [upcomingVisible, setUpcomingVisible] = useState(false);
 
   const monthExpenses = expenses.filter(
     (item) => item.transactionDate >= monthStart(anchor) && item.transactionDate < monthEnd(anchor)
   );
   const monthIncomes = incomes.filter(
-    (item) => item.status === 'completed' && item.transactionDate >= monthStart(anchor) && item.transactionDate < monthEnd(anchor)
+    (item) => item.transactionDate >= monthStart(anchor) && item.transactionDate < monthEnd(anchor)
   );
-  const expenseTotal = monthExpenses.reduce((sum, item) => sum + convertAmount(item.amount, item.currency), 0);
-  const incomeTotal = monthIncomes.reduce((sum, item) => sum + convertAmount(item.amount, item.currency), 0);
+  const persistedRecurringKeys = useMemo(() => new Set([
+    ...expenses.filter((item) => item.recurringId).map((item) => `${item.recurringId}:${dateKey(item.transactionDate)}`),
+    ...incomes.filter((item) => item.recurringId).map((item) => `${item.recurringId}:${dateKey(item.transactionDate)}`),
+  ]), [expenses, incomes]);
+  const projectedMonth = useMemo<UpcomingMovement[]>(() => recurring
+    .filter((rule) => rule.active)
+    .flatMap((rule) => recurringDatesBetween(
+      rule.nextRunDate,
+      rule.frequency,
+      monthStart(anchor),
+      monthEnd(anchor)
+    ).filter((date) => !persistedRecurringKeys.has(`${rule.id}:${dateKey(date)}`)).map((date) => ({
+      id: `projection-${rule.id}-${dateKey(date)}`,
+      kind: rule.kind,
+      description: rule.description,
+      amount: rule.amount,
+      currency: rule.currency,
+      date,
+      categoryId: rule.categoryId,
+      recurring: true,
+      recurringId: rule.id,
+    }))), [anchor, persistedRecurringKeys, recurring]);
+  const projectedMonthExpenses = projectedMonth.filter((item) => item.kind === 'expense');
+  const expenseTotal = [...monthExpenses, ...projectedMonthExpenses]
+    .reduce((sum, item) => sum + convertAmount(item.amount, item.currency), 0);
+  const incomeTotal = [...monthIncomes, ...projectedMonth.filter((item) => item.kind === 'income')]
+    .reduce((sum, item) => sum + convertAmount(item.amount, item.currency), 0);
   const balance = incomeTotal - expenseTotal;
   const savingsRate = incomeTotal > 0 ? (balance / incomeTotal) * 100 : 0;
   const monthBudgets = budgets.filter((item) => sameMonth(item.monthStart, anchor));
   const recentIncomes = [...incomes].sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime()).slice(0, 4);
   const upcoming = useMemo<UpcomingMovement[]>(() => {
-    const plannedExpenses = expenses.filter((item) => item.status === 'planned');
-    const plannedIncomes = incomes.filter((item) => item.status === 'planned');
-    const generatedRuleIds = new Set([
-      ...plannedExpenses.map((item) => item.recurringId),
-      ...plannedIncomes.map((item) => item.recurringId),
-    ].filter(Boolean));
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const horizon = new Date(start);
+    horizon.setFullYear(horizon.getFullYear() + 1);
+    horizon.setDate(horizon.getDate() + 1);
+    const plannedExpenses = expenses.filter((item) => item.status === 'planned' && item.transactionDate >= start);
+    const plannedIncomes = incomes.filter((item) => item.status === 'planned' && item.transactionDate >= start);
+    const projected = recurring
+      .filter((rule) => rule.active)
+      .flatMap((rule) => recurringDatesBetween(rule.nextRunDate, rule.frequency, start, horizon)
+        .filter((date) => !persistedRecurringKeys.has(`${rule.id}:${dateKey(date)}`))
+        .map((date) => ({
+          id: `projection-${rule.id}-${dateKey(date)}`,
+          kind: rule.kind,
+          description: rule.description,
+          amount: rule.amount,
+          currency: rule.currency,
+          date,
+          categoryId: rule.categoryId,
+          recurring: true,
+          recurringId: rule.id,
+        })));
 
     return [
     ...plannedExpenses.map((item) => ({
       id: item.id, kind: 'expense' as const, description: item.description,
       amount: item.amount, currency: item.currency, date: item.transactionDate,
-      categoryId: item.categoryId, recurring: item.source === 'recurring',
+      categoryId: item.categoryId, recurring: item.source === 'recurring', recurringId: item.recurringId,
     })),
     ...plannedIncomes.map((item) => ({
       id: item.id, kind: 'income' as const, description: item.description,
       amount: item.amount, currency: item.currency, date: item.transactionDate,
-      categoryId: null, recurring: item.source === 'recurring',
+      categoryId: null, recurring: item.source === 'recurring', recurringId: item.recurringId,
     })),
-    ...recurring.filter((item) => item.active && !generatedRuleIds.has(item.id)).map((item) => ({
-      id: `rule-${item.id}`, kind: item.kind, description: item.description,
-      amount: item.amount, currency: item.currency, date: item.nextRunDate,
-      categoryId: item.categoryId, recurring: true,
-    })),
+    ...projected,
     ].sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [expenses, incomes, recurring]);
+  }, [expenses, incomes, persistedRecurringKeys, recurring]);
 
   const budgetRows = useMemo(() => monthBudgets.map((budget) => {
-    const spent = monthExpenses
+    const spent = [...monthExpenses, ...projectedMonthExpenses]
       .filter((expense) => budget.categoryId === null || expense.categoryId === budget.categoryId)
       .reduce((sum, expense) => sum + convertAmount(expense.amount, expense.currency), 0);
     const limit = convertAmount(budget.amount, budget.currency);
     return { budget, spent, limit, ratio: limit > 0 ? spent / limit : 0 };
-  }), [monthBudgets, monthExpenses, convertAmount]);
+  }), [monthBudgets, monthExpenses, projectedMonthExpenses, convertAmount]);
 
   function removeBudget(id: string) {
     Alert.alert('Eliminar presupuesto', '¿Quieres eliminar este límite mensual?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: () => void deleteBudget(id).catch(() => showFeedback('No se pudo eliminar.', 'error')) },
     ]);
+  }
+
+  function editUpcomingMovement(movement: UpcomingMovement) {
+    setUpcomingVisible(false);
+    if (movement.recurringId) {
+      const rule = recurring.find((item) => item.id === movement.recurringId);
+      if (rule) {
+        setEditingRecurring(rule);
+        setRecurringVisible(true);
+        return;
+      }
+    }
+    if (movement.kind === 'expense') {
+      setEditingExpense(expenses.find((item) => item.id === movement.id) ?? null);
+    } else {
+      setEditingIncome(incomes.find((item) => item.id === movement.id) ?? null);
+    }
+  }
+
+  function editIncomeMovement(income: Income) {
+    if (income.status === 'planned' && income.recurringId) {
+      const rule = recurring.find((item) => item.id === income.recurringId);
+      if (rule) {
+        setEditingRecurring(rule);
+        setRecurringVisible(true);
+        return;
+      }
+    }
+    setEditingIncome(income);
   }
 
   return (
@@ -145,8 +221,8 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
           <View style={styles.setupCard}>
             <Ionicons name="construct-outline" size={23} color="#92400E" />
             <View style={styles.flex}>
-              <Text style={styles.setupTitle}>Falta preparar Supabase</Text>
-              <Text style={styles.setupText}>Aplica la migración incluida en el proyecto para activar ingresos, presupuestos y recurrencias.</Text>
+              <Text style={styles.setupTitle}>Falta completar la configuración</Text>
+              <Text style={styles.setupText}>Prepara Planificación para activar ingresos, presupuestos y recurrencias.</Text>
             </View>
           </View>
         )}
@@ -172,16 +248,16 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
         </View>
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Próximos movimientos</Text><Text style={styles.sectionHint}>Ingresos y gastos previstos</Text></View>
+          <View><Text style={styles.sectionTitle}>Próximos movimientos</Text><Text style={styles.sectionHint}>Todos los previstos · recurrentes a 12 meses</Text></View>
           {upcoming.length > 0 && <TouchableOpacity style={styles.viewAllButton} onPress={() => setUpcomingVisible(true)}><Text style={styles.viewAllText}>Ver todos ({upcoming.length})</Text><Ionicons name="chevron-forward" size={17} color="#4F46E5" /></TouchableOpacity>}
         </View>
         {upcoming.length === 0 ? <EmptyCard icon="calendar-outline" text="No tienes ingresos ni gastos próximos." /> : upcoming.slice(0, 3).map((item) => {
           const category = item.categoryId ? getCategoryById(item.categoryId) : null;
-          return <View key={`${item.kind}-${item.id}`} style={styles.listCard}>
+          return <TouchableOpacity key={`${item.kind}-${item.id}`} activeOpacity={0.75} style={styles.listCard} onPress={() => editUpcomingMovement(item)}>
             <View style={[styles.iconBox, { backgroundColor: item.kind === 'income' ? '#ECFDF5' : `${category?.color ?? '#4F46E5'}18` }]}><Ionicons name={item.kind === 'income' ? 'arrow-down' : (category?.icon ?? 'arrow-up') as any} size={21} color={item.kind === 'income' ? '#059669' : category?.color ?? '#4F46E5'} /></View>
             <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto')}</Text><Text style={styles.cardMeta}>{formatDate(item.date)}{item.recurring ? ' · Recurrente' : ' · Previsto'}</Text></View>
             <Text style={[styles.cardAmount, item.kind === 'income' ? styles.incomeText : styles.upcomingExpense]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency)}</Text>
-          </View>;
+          </TouchableOpacity>;
         })}
 
         <View style={styles.sectionHeader}>
@@ -208,7 +284,7 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
         })}
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Recurrentes</Text><Text style={styles.sectionHint}>Solo se genera el siguiente vencimiento</Text></View>
+          <View><Text style={styles.sectionTitle}>Recurrentes</Text><Text style={styles.sectionHint}>Cada repetición aparece en la previsión</Text></View>
           <TouchableOpacity style={styles.smallAdd} onPress={() => setRecurringVisible(true)} disabled={setupRequired}>
             <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>Añadir</Text>
           </TouchableOpacity>
@@ -241,7 +317,7 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
           </TouchableOpacity>
         </View>
         {recentIncomes.length === 0 ? <EmptyCard icon="wallet-outline" text="Añade un ingreso para calcular tu ahorro." /> : recentIncomes.map((income) => (
-          <TouchableOpacity key={income.id} style={styles.listCard} onLongPress={() => Alert.alert('Eliminar ingreso', '¿Quieres eliminarlo?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar', style: 'destructive', onPress: () => void deleteIncome(income.id) }])}>
+          <TouchableOpacity key={income.id} activeOpacity={0.75} style={styles.listCard} onPress={() => editIncomeMovement(income)}>
             <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}><Ionicons name="arrow-down" size={21} color="#059669" /></View>
             <View style={styles.flex}><Text style={styles.cardTitle}>{income.description || 'Ingreso'}</Text><Text style={styles.cardMeta}>{formatDate(income.transactionDate)}{income.status === 'planned' ? ' · Previsto' : ''}</Text></View>
             <Text style={[styles.cardAmount, styles.incomeText]}>+{formatCurrencyAmount(income.amount, income.currency)}</Text>
@@ -258,7 +334,9 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
         onUpdate={updateRecurring}
         onDelete={deleteRecurring}
       />
-      <UpcomingMovementsModal visible={upcomingVisible} movements={upcoming} onClose={() => setUpcomingVisible(false)} />
+      <UpcomingMovementsModal visible={upcomingVisible} movements={upcoming} onEdit={editUpcomingMovement} onClose={() => setUpcomingVisible(false)} />
+      <ExpenseEditorModal expense={editingExpense} onClose={() => setEditingExpense(null)} />
+      <IncomeEditorModal income={editingIncome} onClose={() => setEditingIncome(null)} />
     </SafeAreaView>
   );
 }
@@ -268,9 +346,10 @@ function EmptyCard({ icon, text }: { icon: string; text: string }) {
   return <View style={styles.emptyCard}><Ionicons name={icon as any} size={23} color="#818CF8" /><Text style={styles.emptyText}>{text}</Text></View>;
 }
 
-function UpcomingMovementsModal({ visible, movements, onClose }: {
+function UpcomingMovementsModal({ visible, movements, onEdit, onClose }: {
   visible: boolean;
   movements: UpcomingMovement[];
+  onEdit: (movement: UpcomingMovement) => void;
   onClose: () => void;
 }) {
   const styles = useAppStyles(lightStyles);
@@ -285,11 +364,11 @@ function UpcomingMovementsModal({ visible, movements, onClose }: {
         {movements.map((item) => {
           const category = item.categoryId ? getCategoryById(item.categoryId) : null;
           const color = item.kind === 'income' ? '#059669' : category?.color ?? '#4F46E5';
-          return <View key={`${item.kind}-${item.id}`} style={styles.listCard}>
+          return <TouchableOpacity key={`${item.kind}-${item.id}`} activeOpacity={0.75} style={styles.listCard} onPress={() => onEdit(item)}>
             <View style={[styles.iconBox, { backgroundColor: `${color}18` }]}><Ionicons name={item.kind === 'income' ? 'arrow-down' : (category?.icon ?? 'arrow-up') as any} size={21} color={color} /></View>
             <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto')}</Text><Text style={styles.cardMeta}>{formatDate(item.date)} · {item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto'}{item.recurring ? ' recurrente' : ''}</Text></View>
             <Text style={[styles.cardAmount, { color }]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency)}</Text>
-          </View>;
+          </TouchableOpacity>;
         })}
       </ScrollView>
     </SafeAreaView>

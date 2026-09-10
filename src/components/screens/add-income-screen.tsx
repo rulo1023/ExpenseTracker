@@ -73,7 +73,7 @@ export default function AddIncomeScreen({
       return;
     }
     if (setupRequired) {
-      showFeedback('Primero aplica la migración de Planificación en Supabase.', 'error');
+      showFeedback('Falta completar la configuración de Planificación.', 'error');
       return;
     }
     try {
