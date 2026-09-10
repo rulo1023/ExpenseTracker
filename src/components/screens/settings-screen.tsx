@@ -24,6 +24,7 @@ import { useAppStyles } from '../../lib/themed-styles';
 
 type SettingsScreenProps = {
   e5Status: E5Status;
+  onClose?: () => void;
 };
 
 type CurrencyPickerMode = 'input' | 'display' | null;
@@ -47,6 +48,7 @@ function e5Colors(status: E5Status) {
 
 export default function SettingsScreen({
   e5Status,
+  onClose,
 }: SettingsScreenProps) {
   const styles = useAppStyles(lightStyles);
   const { user, signOut } = useAuth();
@@ -104,7 +106,14 @@ export default function SettingsScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Ajustes</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Ajustes</Text>
+          {onClose && (
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="close" size={22} color="#6B7280" />
+            </TouchableOpacity>
+          )}
+        </View>
         <Text style={styles.subtitle}>
           Tu cuenta y preferencias de ExpenseTracker.
         </Text>
@@ -340,7 +349,9 @@ function ThemeOption({
 const lightStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   content: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 32 },
-  title: { marginTop: 12, fontSize: 30, fontWeight: '700', color: '#111827' },
+  header: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  closeButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 30, fontWeight: '700', color: '#111827' },
   subtitle: { marginTop: 5, fontSize: 14, lineHeight: 20, color: '#6B7280' },
   sectionTitle: {
     marginTop: 25,

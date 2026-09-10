@@ -35,6 +35,7 @@ import { useAppStyles } from '../../lib/themed-styles';
 
 type HomeScreenProps = {
   onAddExpense: () => void;
+  onOpenSettings: () => void;
 };
 
 const periodOptions: {
@@ -160,6 +161,7 @@ type CategoryBreakdown = Category & {
 };
 export default function HomeScreen({
   onAddExpense,
+  onOpenSettings,
 }: HomeScreenProps) {
   const styles = useAppStyles(lightStyles);
   const { expenses } = useExpenses();
@@ -405,6 +407,9 @@ export default function HomeScreen({
           >
             Resumen
           </Text>
+          <TouchableOpacity style={styles.settingsButton} onPress={onOpenSettings}>
+            <Ionicons name="settings-outline" size={22} color={isDark ? '#F9FAFB' : '#374151'} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -1254,6 +1259,17 @@ const lightStyles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+  },
+
+  settingsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   expenseAmountGroup: {
     alignItems: 'flex-end',

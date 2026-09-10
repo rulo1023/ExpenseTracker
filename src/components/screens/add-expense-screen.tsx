@@ -64,7 +64,11 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
-export default function AddExpenseScreen() {
+export default function AddExpenseScreen({
+  onSwitchIncome,
+}: {
+  onSwitchIncome?: () => void;
+}) {
   const styles = useAppStyles(lightStyles);
   const { addExpense } = useExpenses();
   const { categories, getCategoryById } =
@@ -265,6 +269,16 @@ export default function AddExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {onSwitchIncome && (
+            <View style={styles.modeRow}>
+              <View style={styles.modeActive}>
+                <Text style={styles.modeActiveText}>Gasto</Text>
+              </View>
+              <TouchableOpacity style={styles.modeInactive} onPress={onSwitchIncome}>
+                <Text style={styles.modeInactiveText}>Ingreso</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <Text style={styles.title}>Nuevo gasto</Text>
 
           <Text style={styles.subtitle}>
@@ -658,6 +672,31 @@ const lightStyles = StyleSheet.create({
   contentWithFooter: {
     paddingBottom: 110,
   },
+
+  modeRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 13,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 6,
+  },
+
+  modeActive: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#4F46E5',
+  },
+
+  modeInactive: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+
+  modeActiveText: { color: '#FFFFFF', fontWeight: '700' },
+  modeInactiveText: { color: '#4B5563', fontWeight: '700' },
 
   title: {
     marginTop: 12,

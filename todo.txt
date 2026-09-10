@@ -162,31 +162,31 @@ RESUMEN / ANALÍTICA
 INGRESOS / FINANZAS GENERALES
 
 [ ] Ingresos
-    [ ] Añadir ingresos
+    [x] Añadir ingresos
     [ ] Categorías de ingresos
-    [ ] Ingresos recurrentes
+    [x] Ingresos recurrentes
     [ ] Importar datos históricos
 
 [ ] Balance
-    [ ] Ingresos - gastos
-    [ ] Balance mensual
+    [x] Ingresos - gastos
+    [x] Balance mensual
     [ ] Balance anual
-    [ ] Ahorro
+    [x] Ahorro
 
 [ ] Ahorro
-    [ ] Porcentaje de ahorro
+    [x] Porcentaje de ahorro
     [ ] Evolución
     [ ] Objetivos
 
 RECURRENTES
 
 [ ] Gastos recurrentes
-    [ ] Mensual / semanal / anual
-    [ ] Próxima ejecución
-    [ ] Crear gastos previstos
+    [x] Mensual / semanal / anual
+    [x] Próxima ejecución
+    [x] Crear gastos previstos
     [ ] Editar una serie
-    [ ] Pausar
-    [ ] Eliminar
+    [x] Pausar
+    [x] Eliminar
 
 [ ] Suscripciones
     [ ] Vista específica
@@ -205,9 +205,9 @@ VOZ
 PRESUPUESTOS
 
 [ ] Presupuesto mensual
-    [ ] Global
-    [ ] Por categoría
-    [ ] Progreso
+    [x] Global
+    [x] Por categoría
+    [x] Progreso
 
 [ ] Avisos
     [ ] 80 % del presupuesto
@@ -215,6 +215,13 @@ PRESUPUESTOS
     [ ] Gasto anormalmente alto
 
 UX / PRODUCTO
+
+[x] Navegación de planificación
+    [x] Ajustes en la cabecera de Resumen
+    [x] Planificación en la barra inferior
+    [x] Botón central para elegir gasto o ingreso
+    [x] Gastos previstos ocultos por defecto
+    [x] Sección Próximos separada en Gastos
 
 [ ] Ajustes
     [x] Moneda de entrada

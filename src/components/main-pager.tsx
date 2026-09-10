@@ -2,6 +2,7 @@
 import { isRunningInExpoGo } from 'expo';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -9,9 +10,12 @@ import {
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
 
+import AddTransactionModal from './add-transaction-modal';
 import AddExpenseScreen from './screens/add-expense-screen';
+import AddIncomeScreen from './screens/add-income-screen';
 import CategoriesScreen from './screens/categories-screen';
 import HomeScreen from './screens/home-screen';
+import PlanningScreen from './screens/planning-screen';
 import SettingsScreen from './screens/settings-screen';
 import TransactionsScreen from './screens/transactions-screen';
 import { useAppSettings } from '../context/app-settings-context';
@@ -31,6 +35,9 @@ export default function MainPager() {
   const [currentPage, setCurrentPage] = useState(0);
   const [e5Status, setE5Status] =
     useState<E5Status>('preparing');
+  const [addMode, setAddMode] = useState<'expense' | 'income'>('expense');
+  const [addChoiceVisible, setAddChoiceVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   useEffect(() => {
     // Expo Go no contiene ONNX Runtime.
@@ -68,6 +75,12 @@ export default function MainPager() {
     pagerRef.current?.setPage(page);
   }
 
+  function openComposer(mode: 'expense' | 'income') {
+    setAddMode(mode);
+    setAddChoiceVisible(false);
+    goToPage(2);
+  }
+
   return (
     <View style={styles.container}>
       <PagerView
@@ -86,9 +99,8 @@ export default function MainPager() {
           collapsable={false}
         >
           <HomeScreen
-            onAddExpense={() =>
-              goToPage(2)
-            }
+            onAddExpense={() => openComposer('expense')}
+            onOpenSettings={() => setSettingsVisible(true)}
           />
         </View>
 
@@ -105,7 +117,19 @@ export default function MainPager() {
           style={styles.page}
           collapsable={false}
         >
-          <AddExpenseScreen />
+          {addMode === 'expense' ? (
+            <AddExpenseScreen onSwitchIncome={() => setAddMode('income')} />
+          ) : (
+            <AddIncomeScreen onSwitchExpense={() => setAddMode('expense')} />
+          )}
+        </View>
+
+        <View
+          key="planning"
+          style={styles.page}
+          collapsable={false}
+        >
+          <PlanningScreen onAddIncome={() => openComposer('income')} />
         </View>
 
         <View
@@ -114,14 +138,6 @@ export default function MainPager() {
           collapsable={false}
         >
           <CategoriesScreen />
-        </View>
-
-        <View
-          key="settings"
-          style={styles.page}
-          collapsable={false}
-        >
-          <SettingsScreen e5Status={e5Status} />
         </View>
       </PagerView>
 
@@ -195,9 +211,7 @@ export default function MainPager() {
               currentPage === 2 &&
                 styles.addButtonActive,
             ]}
-            onPress={() =>
-              goToPage(2)
-            }
+            onPress={() => setAddChoiceVisible(true)}
           >
             <Ionicons
               name="add"
@@ -226,8 +240,8 @@ export default function MainPager() {
           <Ionicons
             name={
               currentPage === 3
-                ? 'grid'
-                : 'grid-outline'
+                ? 'calendar'
+                : 'calendar-outline'
             }
             size={23}
             color={
@@ -244,7 +258,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Categorías
+            Planificación
           </Text>
         </Pressable>
 
@@ -257,8 +271,8 @@ export default function MainPager() {
           <Ionicons
             name={
               currentPage === 4
-                ? 'settings'
-                : 'settings-outline'
+                ? 'grid'
+                : 'grid-outline'
             }
             size={23}
             color={
@@ -275,10 +289,26 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Ajustes
+            Categorías
           </Text>
         </Pressable>
       </View>
+
+      <AddTransactionModal
+        visible={addChoiceVisible}
+        onExpense={() => openComposer('expense')}
+        onIncome={() => openComposer('income')}
+        onClose={() => setAddChoiceVisible(false)}
+      />
+
+      <Modal
+        visible={settingsVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <SettingsScreen e5Status={e5Status} onClose={() => setSettingsVisible(false)} />
+      </Modal>
     </View>
   );
 }

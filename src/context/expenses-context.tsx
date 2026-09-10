@@ -62,6 +62,8 @@ type ExpensesContextType = {
     id: string
   ) => Promise<void>;
 
+  refreshExpenses: () => Promise<void>;
+
   total: number;
 };
 
@@ -330,6 +332,7 @@ export function ExpensesProvider({
         addExpense,
         updateExpense,
         deleteExpense,
+        refreshExpenses: loadExpenses,
         total,
       }}
     >

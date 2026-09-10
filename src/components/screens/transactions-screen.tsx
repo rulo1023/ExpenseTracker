@@ -153,10 +153,12 @@ export default function TransactionsScreen() {
   );
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [filtersVisible, setFiltersVisible] = useState(false);
+  const [showPlanned, setShowPlanned] = useState(false);
   const [filters, setFilters] =
     useState<ExpenseFilters>(defaultExpenseFilters);
 
   const activeFilterCount = countExpenseFilters(filters);
+  const plannedCount = expenses.filter((expense) => expense.status === 'planned').length;
   const hasActiveQuery =
     search.trim() !== '' ||
     quickPeriod !== 'all' ||
@@ -174,6 +176,12 @@ export default function TransactionsScreen() {
         expense.amount,
         expense.currency
       );
+
+      if (
+        expense.status === 'planned' &&
+        !showPlanned &&
+        filters.status !== 'planned'
+      ) return false;
 
       if (range) {
         const timestamp = expense.transactionDate.getTime();
@@ -247,33 +255,45 @@ export default function TransactionsScreen() {
     monthAnchor,
     quickPeriod,
     search,
+    showPlanned,
   ]);
 
   const sections = useMemo(() => {
+    const planned = filteredExpenses
+      .filter((expense) => expense.status === 'planned')
+      .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime());
+    const completed = filteredExpenses.filter((expense) => expense.status !== 'planned');
+
     if (filters.sort === 'highest' || filters.sort === 'lowest') {
-      return filteredExpenses.length > 0
+      const regular = completed.length > 0
         ? [
             {
               title:
                 filters.sort === 'highest'
                   ? 'De mayor a menor'
                   : 'De menor a mayor',
-              data: filteredExpenses,
+              data: completed,
             },
           ]
         : [];
+      return planned.length > 0
+        ? [{ title: 'Próximos', data: planned }, ...regular]
+        : regular;
     }
 
     const grouped = new Map<string, Expense[]>();
-    filteredExpenses.forEach((expense) => {
+    completed.forEach((expense) => {
       const key = startOfDay(expense.transactionDate).toISOString();
       grouped.set(key, [...(grouped.get(key) ?? []), expense]);
     });
 
-    return Array.from(grouped.entries()).map(([key, data]) => ({
+    const dated = Array.from(grouped.entries()).map(([key, data]) => ({
       title: sectionTitle(new Date(key)),
       data,
     }));
+    return planned.length > 0
+      ? [{ title: 'Próximos', data: planned }, ...dated]
+      : dated;
   }, [filteredExpenses, filters.sort]);
 
   const resultTotal = filteredExpenses.reduce(
@@ -369,6 +389,17 @@ export default function TransactionsScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {plannedCount > 0 && (
+                <TouchableOpacity
+                  style={[styles.periodChip, showPlanned && styles.plannedChipSelected]}
+                  onPress={() => setShowPlanned((current) => !current)}
+                >
+                  <Ionicons name={showPlanned ? 'eye' : 'eye-off-outline'} size={16} color={showPlanned ? '#FFFFFF' : '#C2410C'} />
+                  <Text style={[styles.periodChipText, styles.plannedChipText, showPlanned && styles.periodChipTextSelected]}>
+                    {showPlanned ? 'Ocultar previstos' : `Mostrar previstos (${plannedCount})`}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
 
             {quickPeriod === 'month' && (
@@ -614,6 +645,8 @@ const lightStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   periodChipSelected: {
     borderColor: '#4F46E5',
@@ -625,6 +658,8 @@ const lightStyles = StyleSheet.create({
     color: '#4B5563',
   },
   periodChipTextSelected: { color: '#FFFFFF' },
+  plannedChipSelected: { borderColor: '#C2410C', backgroundColor: '#C2410C' },
+  plannedChipText: { color: '#C2410C' },
   monthNavigator: {
     marginTop: 10,
     minHeight: 48,
