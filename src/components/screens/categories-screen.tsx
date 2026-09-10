@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import SettingsButton from '../settings-button';
+
 import {
   Category,
   useCategories,
@@ -172,7 +174,7 @@ const ICONS = [
   'repeat-outline',
 ] as const;
 
-export default function CategoriesScreen() {
+export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const styles = useAppStyles(lightStyles);
   const {
     categories,
@@ -357,16 +359,19 @@ export default function CategoriesScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.newButton}
-          onPress={openNew}
-        >
-          <Ionicons
-            name="add"
-            size={21}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <SettingsButton onPress={onOpenSettings} />
+          <TouchableOpacity
+            style={styles.newButton}
+            onPress={openNew}
+          >
+            <Ionicons
+              name="add"
+              size={21}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView

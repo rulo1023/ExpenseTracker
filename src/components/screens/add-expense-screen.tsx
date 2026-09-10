@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CategoryPickerModal from '../category-picker-modal';
 import CurrencyPickerModal from '../currency-picker-modal';
+import SettingsButton from '../settings-button';
 import {
   currencyInfo,
   useAppSettings,
@@ -66,8 +67,10 @@ function formatDate(date: Date) {
 
 export default function AddExpenseScreen({
   onSwitchIncome,
+  onOpenSettings,
 }: {
   onSwitchIncome?: () => void;
+  onOpenSettings: () => void;
 }) {
   const styles = useAppStyles(lightStyles);
   const { addExpense } = useExpenses();
@@ -269,16 +272,19 @@ export default function AddExpenseScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {onSwitchIncome && (
-            <View style={styles.modeRow}>
-              <View style={styles.modeActive}>
-                <Text style={styles.modeActiveText}>Gasto</Text>
+          <View style={styles.topBar}>
+            {onSwitchIncome && (
+              <View style={styles.modeRow}>
+                <View style={styles.modeActive}>
+                  <Text style={styles.modeActiveText}>Gasto</Text>
+                </View>
+                <TouchableOpacity style={styles.modeInactive} onPress={onSwitchIncome}>
+                  <Text style={styles.modeInactiveText}>Ingreso</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.modeInactive} onPress={onSwitchIncome}>
-                <Text style={styles.modeInactiveText}>Ingreso</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+            <SettingsButton onPress={onOpenSettings} />
+          </View>
           <Text style={styles.title}>Nuevo gasto</Text>
 
           <Text style={styles.subtitle}>
@@ -673,13 +679,19 @@ const lightStyles = StyleSheet.create({
     paddingBottom: 110,
   },
 
+  topBar: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
   modeRow: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     padding: 4,
     borderRadius: 13,
     backgroundColor: '#E5E7EB',
-    marginBottom: 6,
   },
 
   modeActive: {

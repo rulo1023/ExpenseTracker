@@ -29,7 +29,10 @@ HECHO
 [x] Selector de categorías reutilizable
 [x] Editor de gasto compartido entre Resumen y Gastos
 [x] Avisos flotantes modernos para guardar, editar y borrar
-[x] Pantalla Movimientos renombrada a Gastos
+[x] Pantalla Movimientos con selector Gastos / Ingresos
+[x] Búsqueda y navegación temporal de ingresos
+[x] Edición y borrado de ingresos
+[x] Vista completa de próximos movimientos en Planificación
 [x] Cerrar sesión trasladado a Ajustes
 
 CORTO PLAZO
@@ -184,7 +187,7 @@ RECURRENTES
     [x] Mensual / semanal / anual
     [x] Próxima ejecución
     [x] Crear gastos previstos
-    [ ] Editar una serie
+    [x] Editar una serie
     [x] Pausar
     [x] Eliminar
 
@@ -221,7 +224,7 @@ UX / PRODUCTO
     [x] Planificación en la barra inferior
     [x] Botón central para elegir gasto o ingreso
     [x] Gastos previstos ocultos por defecto
-    [x] Sección Próximos separada en Gastos
+    [x] Sección Próximos separada en Movimientos
 
 [ ] Ajustes
     [x] Moneda de entrada

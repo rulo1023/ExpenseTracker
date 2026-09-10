@@ -32,6 +32,7 @@ export type Expense = {
   transactionDate: Date;
   status: ExpenseStatus;
   source: ExpenseSource;
+  recurringId: string | null;
   createdAt: Date;
 };
 
@@ -85,6 +86,7 @@ function mapExpense(row: any): Expense {
       row.status as ExpenseStatus,
     source:
       row.source as ExpenseSource,
+    recurringId: row.recurring_id ?? null,
     createdAt:
       new Date(row.created_at),
   };

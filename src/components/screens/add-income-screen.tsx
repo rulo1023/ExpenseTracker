@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CurrencyPickerModal from '../currency-picker-modal';
+import SettingsButton from '../settings-button';
 import { currencyInfo, useAppSettings } from '../../context/app-settings-context';
 import { useFeedback } from '../../context/feedback-context';
 import { useFinance } from '../../context/finance-context';
@@ -38,8 +39,10 @@ function formatDate(date: Date) {
 
 export default function AddIncomeScreen({
   onSwitchExpense,
+  onOpenSettings,
 }: {
   onSwitchExpense: () => void;
+  onOpenSettings: () => void;
 }) {
   const styles = useAppStyles(lightStyles);
   const { addIncome, setupRequired } = useFinance();
@@ -99,13 +102,16 @@ export default function AddIncomeScreen({
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.modeRow}>
-            <TouchableOpacity style={styles.modeInactive} onPress={onSwitchExpense}>
-              <Text style={styles.modeInactiveText}>Gasto</Text>
-            </TouchableOpacity>
-            <View style={styles.modeActive}>
-              <Text style={styles.modeActiveText}>Ingreso</Text>
+          <View style={styles.topBar}>
+            <View style={styles.modeRow}>
+              <TouchableOpacity style={styles.modeInactive} onPress={onSwitchExpense}>
+                <Text style={styles.modeInactiveText}>Gasto</Text>
+              </TouchableOpacity>
+              <View style={styles.modeActive}>
+                <Text style={styles.modeActiveText}>Ingreso</Text>
+              </View>
             </View>
+            <SettingsButton onPress={onOpenSettings} />
           </View>
 
           <Text style={styles.title}>Nuevo ingreso</Text>
@@ -194,7 +200,8 @@ const lightStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   flex: { flex: 1 },
   content: { padding: 20, paddingBottom: 120 },
-  modeRow: { alignSelf: 'flex-start', flexDirection: 'row', padding: 4, borderRadius: 13, backgroundColor: '#E5E7EB', marginBottom: 18 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  modeRow: { flexDirection: 'row', padding: 4, borderRadius: 13, backgroundColor: '#E5E7EB' },
   modeActive: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10, backgroundColor: '#059669' },
   modeInactive: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10 },
   modeActiveText: { color: '#FFFFFF', fontWeight: '700' },

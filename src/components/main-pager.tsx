@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
 
-import AddTransactionModal from './add-transaction-modal';
 import AddExpenseScreen from './screens/add-expense-screen';
 import AddIncomeScreen from './screens/add-income-screen';
 import CategoriesScreen from './screens/categories-screen';
@@ -36,7 +35,6 @@ export default function MainPager() {
   const [e5Status, setE5Status] =
     useState<E5Status>('preparing');
   const [addMode, setAddMode] = useState<'expense' | 'income'>('expense');
-  const [addChoiceVisible, setAddChoiceVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   useEffect(() => {
@@ -77,7 +75,6 @@ export default function MainPager() {
 
   function openComposer(mode: 'expense' | 'income') {
     setAddMode(mode);
-    setAddChoiceVisible(false);
     goToPage(2);
   }
 
@@ -109,7 +106,7 @@ export default function MainPager() {
           style={styles.page}
           collapsable={false}
         >
-          <TransactionsScreen />
+        <TransactionsScreen onOpenSettings={() => setSettingsVisible(true)} />
         </View>
 
         <View
@@ -118,9 +115,15 @@ export default function MainPager() {
           collapsable={false}
         >
           {addMode === 'expense' ? (
-            <AddExpenseScreen onSwitchIncome={() => setAddMode('income')} />
+            <AddExpenseScreen
+              onSwitchIncome={() => setAddMode('income')}
+              onOpenSettings={() => setSettingsVisible(true)}
+            />
           ) : (
-            <AddIncomeScreen onSwitchExpense={() => setAddMode('expense')} />
+            <AddIncomeScreen
+              onSwitchExpense={() => setAddMode('expense')}
+              onOpenSettings={() => setSettingsVisible(true)}
+            />
           )}
         </View>
 
@@ -129,7 +132,10 @@ export default function MainPager() {
           style={styles.page}
           collapsable={false}
         >
-          <PlanningScreen onAddIncome={() => openComposer('income')} />
+          <PlanningScreen
+            onAddIncome={() => openComposer('income')}
+            onOpenSettings={() => setSettingsVisible(true)}
+          />
         </View>
 
         <View
@@ -137,7 +143,7 @@ export default function MainPager() {
           style={styles.page}
           collapsable={false}
         >
-          <CategoriesScreen />
+          <CategoriesScreen onOpenSettings={() => setSettingsVisible(true)} />
         </View>
       </PagerView>
 
@@ -200,7 +206,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Gastos
+            Movimientos
           </Text>
         </Pressable>
 
@@ -211,7 +217,7 @@ export default function MainPager() {
               currentPage === 2 &&
                 styles.addButtonActive,
             ]}
-            onPress={() => setAddChoiceVisible(true)}
+            onPress={() => openComposer('expense')}
           >
             <Ionicons
               name="add"
@@ -293,13 +299,6 @@ export default function MainPager() {
           </Text>
         </Pressable>
       </View>
-
-      <AddTransactionModal
-        visible={addChoiceVisible}
-        onExpense={() => openComposer('expense')}
-        onIncome={() => openComposer('income')}
-        onClose={() => setAddChoiceVisible(false)}
-      />
 
       <Modal
         visible={settingsVisible}

@@ -24,6 +24,7 @@ export type Income = {
   transactionDate: Date;
   status: IncomeStatus;
   source: 'manual' | 'recurring';
+  recurringId: string | null;
   createdAt: Date;
 };
 
@@ -47,7 +48,7 @@ export type RecurringTransaction = {
   active: boolean;
 };
 
-export type IncomeInput = Omit<Income, 'id' | 'createdAt' | 'source'> & {
+export type IncomeInput = Omit<Income, 'id' | 'createdAt' | 'source' | 'recurringId'> & {
   source?: Income['source'];
 };
 
@@ -61,10 +62,12 @@ type FinanceContextValue = {
   loading: boolean;
   setupRequired: boolean;
   addIncome: (input: IncomeInput) => Promise<void>;
+  updateIncome: (id: string, input: IncomeInput) => Promise<void>;
   deleteIncome: (id: string) => Promise<void>;
   saveBudget: (input: BudgetInput) => Promise<void>;
   deleteBudget: (id: string) => Promise<void>;
   addRecurring: (input: RecurringInput) => Promise<void>;
+  updateRecurring: (id: string, input: RecurringInput) => Promise<void>;
   toggleRecurring: (id: string, active: boolean) => Promise<void>;
   deleteRecurring: (id: string) => Promise<void>;
   refreshFinance: () => Promise<void>;
@@ -81,6 +84,7 @@ function mapIncome(row: any): Income {
     transactionDate: new Date(row.transaction_date),
     status: row.status as IncomeStatus,
     source: row.source as Income['source'],
+    recurringId: row.recurring_id ?? null,
     createdAt: new Date(row.created_at),
   };
 }
@@ -159,8 +163,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           .limit(1);
         if (pendingError) throw pendingError;
         const pendingOccurrence = pending?.[0];
+        let occurrenceDate = new Date(rule.nextRunDate);
         if (pendingOccurrence) {
-          if (new Date(pendingOccurrence.transaction_date).getTime() > today.getTime()) {
+          const pendingDate = new Date(pendingOccurrence.transaction_date);
+          if (pendingDate.getTime() > today.getTime()) {
+            if (dateOnly(pendingDate) !== dateOnly(rule.nextRunDate)) {
+              const { error: alignError } = await supabase
+                .from('recurring_transactions')
+                .update({ next_run_date: dateOnly(pendingDate) })
+                .eq('id', rule.id)
+                .eq('user_id', user.id);
+              if (alignError) throw alignError;
+            }
             continue;
           }
           const { error: completeError } = await supabase
@@ -171,23 +185,30 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           if (completeError) throw completeError;
           if (rule.kind === 'expense') expensesChanged = true;
           else incomesChanged = true;
+
+          occurrenceDate = rule.nextRunDate.getTime() > pendingDate.getTime()
+            ? new Date(rule.nextRunDate)
+            : advanceDate(pendingDate, rule.frequency);
+          while (occurrenceDate.getTime() <= today.getTime()) {
+            occurrenceDate = advanceDate(occurrenceDate, rule.frequency);
+          }
+
+          const { error: advanceError } = await supabase
+            .from('recurring_transactions')
+            .update({ next_run_date: dateOnly(occurrenceDate) })
+            .eq('id', rule.id)
+            .eq('user_id', user.id);
+          if (advanceError) throw advanceError;
         }
 
-        if (rule.nextRunDate.getTime() > horizon.getTime()) continue;
-
-        let dueDate = new Date(rule.nextRunDate);
-        let following = advanceDate(dueDate, rule.frequency);
-        while (following.getTime() <= today.getTime()) {
-          dueDate = following;
-          following = advanceDate(following, rule.frequency);
-        }
+        if (occurrenceDate.getTime() > horizon.getTime()) continue;
 
         const common = {
           user_id: user.id,
           description: rule.description.trim(),
           amount: rule.amount,
           currency: rule.currency,
-          transaction_date: dueDate.toISOString(),
+          transaction_date: occurrenceDate.toISOString(),
           status: 'planned',
           source: 'recurring',
           recurring_id: rule.id,
@@ -206,13 +227,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           if (error && error.code !== '23505') throw error;
           incomesChanged = true;
         }
-
-        const { error: updateError } = await supabase
-          .from('recurring_transactions')
-          .update({ next_run_date: dateOnly(following) })
-          .eq('id', rule.id)
-          .eq('user_id', user.id);
-        if (updateError) throw updateError;
       }
 
       if (expensesChanged) await refreshExpenses();
@@ -296,6 +310,23 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setIncomes((current) => current.filter((item) => item.id !== id));
   }
 
+  async function updateIncome(id: string, input: IncomeInput) {
+    if (!user) throw new Error('User is not authenticated');
+    const { data, error } = await supabase.from('incomes').update({
+      description: input.description.trim(),
+      amount: input.amount,
+      currency: input.currency ?? inputCurrency,
+      transaction_date: input.transactionDate.toISOString(),
+      status: input.status,
+      source: input.source ?? 'manual',
+    }).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    const mapped = mapIncome(data);
+    setIncomes((current) => current
+      .map((item) => item.id === id ? mapped : item)
+      .sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime()));
+  }
+
   async function saveBudget(input: BudgetInput) {
     if (!user) throw new Error('User is not authenticated');
     const existing = budgets.find(
@@ -347,19 +378,63 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('recurring_transactions').update({ active }).eq('id', id).eq('user_id', user.id);
     if (error) throw error;
     setRecurring((current) => current.map((item) => item.id === id ? { ...item, active } : item));
+    if (!active) {
+      const [expenseDelete, incomeDelete] = await Promise.all([
+        supabase.from('expenses').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+        supabase.from('incomes').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+      ]);
+      if (expenseDelete.error) throw expenseDelete.error;
+      if (incomeDelete.error) throw incomeDelete.error;
+      setIncomes((current) => current.filter((item) => item.recurringId !== id || item.status !== 'planned'));
+      await refreshExpenses();
+    } else {
+      await refreshFinance();
+    }
+  }
+
+  async function updateRecurring(id: string, input: RecurringInput) {
+    if (!user) throw new Error('User is not authenticated');
+    const { error } = await supabase.from('recurring_transactions').update({
+      kind: input.kind,
+      category_id: input.categoryId,
+      description: input.description.trim(),
+      amount: input.amount,
+      currency: input.currency,
+      frequency: input.frequency,
+      next_run_date: dateOnly(input.nextRunDate),
+      active: input.active,
+    }).eq('id', id).eq('user_id', user.id);
+    if (error) throw error;
+
+    const [expenseDelete, incomeDelete] = await Promise.all([
+      supabase.from('expenses').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+      supabase.from('incomes').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+    ]);
+    if (expenseDelete.error) throw expenseDelete.error;
+    if (incomeDelete.error) throw incomeDelete.error;
+    await refreshExpenses();
+    await refreshFinance();
   }
 
   async function deleteRecurring(id: string) {
     if (!user) return;
+    const [expenseDelete, incomeDelete] = await Promise.all([
+      supabase.from('expenses').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+      supabase.from('incomes').delete().eq('recurring_id', id).eq('status', 'planned').eq('user_id', user.id),
+    ]);
+    if (expenseDelete.error) throw expenseDelete.error;
+    if (incomeDelete.error) throw incomeDelete.error;
     const { error } = await supabase.from('recurring_transactions').delete().eq('id', id).eq('user_id', user.id);
     if (error) throw error;
     setRecurring((current) => current.filter((item) => item.id !== id));
+    setIncomes((current) => current.filter((item) => item.recurringId !== id || item.status !== 'planned'));
+    await refreshExpenses();
   }
 
   const value = useMemo(() => ({
     incomes, budgets, recurring, loading, setupRequired,
-    addIncome, deleteIncome, saveBudget, deleteBudget,
-    addRecurring, toggleRecurring, deleteRecurring, refreshFinance,
+    addIncome, updateIncome, deleteIncome, saveBudget, deleteBudget,
+    addRecurring, updateRecurring, toggleRecurring, deleteRecurring, refreshFinance,
   }), [incomes, budgets, recurring, loading, setupRequired, refreshFinance]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

@@ -13,6 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpenseEditorModal from '../expense-editor-modal';
+import IncomeEditorModal from '../income-editor-modal';
+import SettingsButton from '../settings-button';
 import ExpenseFiltersModal, {
   countExpenseFilters,
   defaultExpenseFilters,
@@ -24,6 +26,7 @@ import {
 } from '../../context/app-settings-context';
 import { useCategories } from '../../context/categories-context';
 import { Expense, useExpenses } from '../../context/expenses-context';
+import { Income, useFinance } from '../../context/finance-context';
 import { useAppStyles } from '../../lib/themed-styles';
 
 type QuickPeriod = 'all' | 'today' | 'week' | 'month';
@@ -135,9 +138,10 @@ function sourceLabel(source: Expense['source']) {
   return labels[source];
 }
 
-export default function TransactionsScreen() {
+export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const styles = useAppStyles(lightStyles);
   const { expenses } = useExpenses();
+  const { incomes } = useFinance();
   const {
     convertAmount,
     displayCurrency,
@@ -145,6 +149,8 @@ export default function TransactionsScreen() {
   } = useAppSettings();
   const { getCategoryById } = useCategories();
   const [editing, setEditing] = useState<Expense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<Income | null>(null);
+  const [movementKind, setMovementKind] = useState<'expense' | 'income'>('expense');
   const [search, setSearch] = useState('');
   const [quickPeriod, setQuickPeriod] =
     useState<QuickPeriod>('all');
@@ -327,12 +333,36 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Gastos</Text>
-      <Text style={styles.subtitle}>
-        Busca, filtra o toca un gasto para editarlo.
-      </Text>
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Movimientos</Text>
+          <Text style={styles.subtitle}>
+            Consulta y edita tus gastos e ingresos.
+          </Text>
+        </View>
+        <SettingsButton onPress={onOpenSettings} />
+      </View>
 
-      <SectionList
+      <View style={styles.kindSelector}>
+        <TouchableOpacity
+          style={[styles.kindOption, movementKind === 'expense' && styles.kindExpenseActive]}
+          onPress={() => setMovementKind('expense')}
+        >
+          <Ionicons name="arrow-up" size={17} color={movementKind === 'expense' ? '#FFFFFF' : '#4F46E5'} />
+          <Text style={[styles.kindOptionText, movementKind === 'expense' && styles.kindOptionTextActive]}>Gastos</Text>
+          <View style={[styles.kindCount, movementKind === 'expense' && styles.kindCountActive]}><Text style={[styles.kindCountText, movementKind === 'expense' && styles.kindCountTextActive]}>{expenses.length}</Text></View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.kindOption, movementKind === 'income' && styles.kindIncomeActive]}
+          onPress={() => setMovementKind('income')}
+        >
+          <Ionicons name="arrow-down" size={17} color={movementKind === 'income' ? '#FFFFFF' : '#059669'} />
+          <Text style={[styles.kindOptionText, movementKind === 'income' && styles.kindOptionTextActive]}>Ingresos</Text>
+          <View style={[styles.kindCount, movementKind === 'income' && styles.kindCountActive]}><Text style={[styles.kindCountText, movementKind === 'income' && styles.kindCountTextActive]}>{incomes.length}</Text></View>
+        </TouchableOpacity>
+      </View>
+
+      {movementKind === 'expense' ? <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
@@ -389,18 +419,31 @@ export default function TransactionsScreen() {
                   </TouchableOpacity>
                 );
               })}
-              {plannedCount > 0 && (
-                <TouchableOpacity
-                  style={[styles.periodChip, showPlanned && styles.plannedChipSelected]}
-                  onPress={() => setShowPlanned((current) => !current)}
-                >
-                  <Ionicons name={showPlanned ? 'eye' : 'eye-off-outline'} size={16} color={showPlanned ? '#FFFFFF' : '#C2410C'} />
-                  <Text style={[styles.periodChipText, styles.plannedChipText, showPlanned && styles.periodChipTextSelected]}>
-                    {showPlanned ? 'Ocultar previstos' : `Mostrar previstos (${plannedCount})`}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </ScrollView>
+
+            {plannedCount > 0 && (
+              <TouchableOpacity
+                style={[styles.plannedToggle, showPlanned && styles.plannedToggleActive]}
+                onPress={() => setShowPlanned((current) => !current)}
+              >
+                <View style={[styles.plannedToggleIcon, showPlanned && styles.plannedToggleIconActive]}>
+                  <Ionicons
+                    name={showPlanned ? 'eye' : 'calendar-outline'}
+                    size={19}
+                    color={showPlanned ? '#FFFFFF' : '#4F46E5'}
+                  />
+                </View>
+                <View style={styles.plannedToggleText}>
+                  <Text style={[styles.plannedToggleTitle, showPlanned && styles.plannedToggleTitleActive]}>
+                    {showPlanned ? 'Ocultar próximos gastos' : `Ver próximos gastos (${plannedCount})`}
+                  </Text>
+                  <Text style={[styles.plannedToggleHint, showPlanned && styles.plannedToggleHintActive]}>
+                    {showPlanned ? 'La sección Próximos está visible' : 'Pagos previstos y recurrentes'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={showPlanned ? '#FFFFFF' : '#4F46E5'} />
+              </TouchableOpacity>
+            )}
 
             {quickPeriod === 'month' && (
               <View style={styles.monthNavigator}>
@@ -559,7 +602,9 @@ export default function TransactionsScreen() {
             </TouchableOpacity>
           );
         }}
-      />
+      /> : (
+        <IncomeMovements incomes={incomes} onEdit={setEditingIncome} />
+      )}
 
       {showMonthPicker && (
         <DateTimePicker
@@ -586,7 +631,91 @@ export default function TransactionsScreen() {
         expense={editing}
         onClose={() => setEditing(null)}
       />
+      <IncomeEditorModal income={editingIncome} onClose={() => setEditingIncome(null)} />
     </SafeAreaView>
+  );
+}
+
+function IncomeMovements({ incomes, onEdit }: {
+  incomes: Income[];
+  onEdit: (income: Income) => void;
+}) {
+  const styles = useAppStyles(lightStyles);
+  const { convertAmount, displayCurrency, formatMoney } = useAppSettings();
+  const [search, setSearch] = useState('');
+  const [quickPeriod, setQuickPeriod] = useState<QuickPeriod>('all');
+  const [monthAnchor, setMonthAnchor] = useState(startOfDay(new Date()));
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+  const filtered = useMemo(() => {
+    const query = normalizeSearch(search);
+    const range = getPeriodRange(quickPeriod, monthAnchor);
+    return incomes
+      .filter((income) => {
+        if (range) {
+          const time = income.transactionDate.getTime();
+          if (time < range.start.getTime() || time >= range.end.getTime()) return false;
+        }
+        if (!query) return true;
+        const displayed = convertAmount(income.amount, income.currency);
+        return normalizeSearch(`${income.description} ${income.amount} ${displayed} ${income.currency}`).includes(query);
+      })
+      .sort((a, b) => b.transactionDate.getTime() - a.transactionDate.getTime());
+  }, [convertAmount, incomes, monthAnchor, quickPeriod, search]);
+
+  const sections = useMemo(() => {
+    const planned = filtered
+      .filter((income) => income.status === 'planned')
+      .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime());
+    const grouped = new Map<string, Income[]>();
+    filtered.filter((income) => income.status === 'completed').forEach((income) => {
+      const key = startOfDay(income.transactionDate).toISOString();
+      grouped.set(key, [...(grouped.get(key) ?? []), income]);
+    });
+    const completed = Array.from(grouped.entries()).map(([key, data]) => ({
+      title: sectionTitle(new Date(key)), data,
+    }));
+    return planned.length > 0 ? [{ title: 'Próximos', data: planned }, ...completed] : completed;
+  }, [filtered]);
+
+  const total = filtered.reduce((sum, income) => sum + convertAmount(income.amount, income.currency), 0);
+
+  return (
+    <SectionList
+      sections={sections}
+      keyExtractor={(item) => item.id}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      stickySectionHeadersEnabled={false}
+      contentContainerStyle={[styles.list, sections.length === 0 && styles.emptyList]}
+      ListHeaderComponent={<View>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+          <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Concepto o importe" placeholderTextColor="#9CA3AF" returnKeyType="search" />
+          {search.length > 0 && <TouchableOpacity onPress={() => setSearch('')}><Ionicons name="close-circle" size={20} color="#9CA3AF" /></TouchableOpacity>}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periodRow}>
+          {periodOptions.map((option) => {
+            const selected = quickPeriod === option.value;
+            return <TouchableOpacity key={option.value} style={[styles.periodChip, selected && styles.incomePeriodSelected]} onPress={() => { setQuickPeriod(option.value); if (option.value === 'month') setMonthAnchor(startOfDay(new Date())); }}><Text style={[styles.periodChipText, selected && styles.periodChipTextSelected]}>{option.label}</Text></TouchableOpacity>;
+          })}
+        </ScrollView>
+        {quickPeriod === 'month' && <View style={[styles.monthNavigator, styles.incomeMonthNavigator]}>
+          <TouchableOpacity style={styles.monthArrow} onPress={() => setMonthAnchor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><Ionicons name="chevron-back" size={21} color="#047857" /></TouchableOpacity>
+          <TouchableOpacity style={styles.monthLabelButton} onPress={() => setShowMonthPicker(true)}><Ionicons name="calendar-outline" size={17} color="#047857" /><Text style={[styles.monthLabel, styles.incomeMonthLabel]}>{formatMonth(monthAnchor)}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.monthArrow} onPress={() => setMonthAnchor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><Ionicons name="chevron-forward" size={21} color="#047857" /></TouchableOpacity>
+        </View>}
+        <View style={styles.resultsBar}><View><Text style={styles.resultCount}>{filtered.length} {filtered.length === 1 ? 'ingreso' : 'ingresos'}</Text><Text style={styles.resultTotal}>{formatMoney(total, displayCurrency)} en total</Text></View></View>
+      </View>}
+      ListEmptyComponent={<View style={styles.emptyState}><View style={[styles.emptyIcon, styles.incomeEmptyIcon]}><Ionicons name={incomes.length === 0 ? 'wallet-outline' : 'search-outline'} size={30} color="#059669" /></View><Text style={styles.emptyTitle}>{incomes.length === 0 ? 'Aún no hay ingresos' : 'No hay resultados'}</Text><Text style={styles.emptyText}>{incomes.length === 0 ? 'Los ingresos que añadas aparecerán aquí.' : 'Prueba con otra búsqueda o periodo.'}</Text></View>}
+      renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
+      renderItem={({ item }) => <TouchableOpacity activeOpacity={0.75} style={[styles.card, item.status === 'planned' && styles.incomePlanned]} onPress={() => onEdit(item)}>
+        <View style={[styles.transactionIcon, styles.incomeIcon]}><Ionicons name="arrow-down" size={21} color="#059669" /></View>
+        <View style={styles.cardText}><Text style={styles.description} numberOfLines={1}>{item.description || 'Ingreso'}</Text><Text style={styles.cardMeta}>{formatShortDate(item.transactionDate)}{item.status === 'planned' ? ' · Previsto' : ''}{item.source === 'recurring' ? ' · Recurrente' : ''}</Text></View>
+        <View style={styles.amountGroup}><Text style={[styles.amount, styles.incomeAmount]}>+{formatMoney(item.amount, item.currency)}</Text>{item.currency !== displayCurrency && <Text style={styles.originalAmount}>{formatCurrencyAmount(item.amount, item.currency)}</Text>}</View>
+      </TouchableOpacity>}
+      ListFooterComponent={showMonthPicker ? <DateTimePicker value={monthAnchor} mode="date" presentation="dialog" onValueChange={(_event, value) => { setMonthAnchor(new Date(value.getFullYear(), value.getMonth(), 1)); setShowMonthPicker(false); }} onDismiss={() => setShowMonthPicker(false)} /> : null}
+    />
   );
 }
 
@@ -596,8 +725,19 @@ const lightStyles = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: '#F6F7F9',
   },
+  header: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerText: { flex: 1 },
+  kindSelector: { marginTop: 16, padding: 4, borderRadius: 15, backgroundColor: '#E5E7EB', flexDirection: 'row', gap: 4 },
+  kindOption: { flex: 1, minHeight: 43, paddingHorizontal: 10, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  kindExpenseActive: { backgroundColor: '#4F46E5' },
+  kindIncomeActive: { backgroundColor: '#059669' },
+  kindOptionText: { color: '#4B5563', fontSize: 13, fontWeight: '800' },
+  kindOptionTextActive: { color: '#FFFFFF' },
+  kindCount: { minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  kindCountActive: { backgroundColor: '#FFFFFF33' },
+  kindCountText: { color: '#6B7280', fontSize: 10, fontWeight: '800' },
+  kindCountTextActive: { color: '#FFFFFF' },
   title: {
-    marginTop: 12,
     fontSize: 30,
     fontWeight: '700',
     color: '#111827',
@@ -652,14 +792,22 @@ const lightStyles = StyleSheet.create({
     borderColor: '#4F46E5',
     backgroundColor: '#4F46E5',
   },
+  incomePeriodSelected: { borderColor: '#059669', backgroundColor: '#059669' },
   periodChipText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#4B5563',
   },
   periodChipTextSelected: { color: '#FFFFFF' },
-  plannedChipSelected: { borderColor: '#C2410C', backgroundColor: '#C2410C' },
-  plannedChipText: { color: '#C2410C' },
+  plannedToggle: { marginTop: 12, minHeight: 60, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: '#C7D2FE', backgroundColor: '#EEF2FF', flexDirection: 'row', alignItems: 'center', gap: 11 },
+  plannedToggleActive: { borderColor: '#4F46E5', backgroundColor: '#4F46E5' },
+  plannedToggleIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' },
+  plannedToggleIconActive: { backgroundColor: '#3730A3' },
+  plannedToggleText: { flex: 1 },
+  plannedToggleTitle: { color: '#4338CA', fontSize: 14, fontWeight: '800' },
+  plannedToggleTitleActive: { color: '#FFFFFF' },
+  plannedToggleHint: { marginTop: 2, color: '#6366F1', fontSize: 11 },
+  plannedToggleHintActive: { color: '#E0E7FF' },
   monthNavigator: {
     marginTop: 10,
     minHeight: 48,
@@ -687,6 +835,8 @@ const lightStyles = StyleSheet.create({
     fontWeight: '700',
     color: '#4338CA',
   },
+  incomeMonthNavigator: { backgroundColor: '#ECFDF5' },
+  incomeMonthLabel: { color: '#047857' },
   resultsBar: {
     marginTop: 15,
     marginBottom: 7,
@@ -757,6 +907,9 @@ const lightStyles = StyleSheet.create({
     gap: 11,
   },
   cardPlanned: { backgroundColor: '#FFF7ED' },
+  incomePlanned: { backgroundColor: '#ECFDF5' },
+  incomeIcon: { backgroundColor: '#ECFDF5' },
+  incomeAmount: { color: '#059669' },
   transactionIcon: {
     width: 42,
     height: 42,
@@ -803,6 +956,7 @@ const lightStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  incomeEmptyIcon: { backgroundColor: '#ECFDF5' },
   emptyTitle: {
     marginTop: 16,
     fontSize: 18,

@@ -107,12 +107,12 @@ export default function SettingsScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Ajustes</Text>
           {onClose && (
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={22} color="#6B7280" />
+            <TouchableOpacity accessibilityLabel="Volver" style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="arrow-back" size={22} color="#374151" />
             </TouchableOpacity>
           )}
+          <Text style={styles.title}>Ajustes</Text>
         </View>
         <Text style={styles.subtitle}>
           Tu cuenta y preferencias de ExpenseTracker.
@@ -349,7 +349,7 @@ function ThemeOption({
 const lightStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   content: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 32 },
-  header: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   closeButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 30, fontWeight: '700', color: '#111827' },
   subtitle: { marginTop: 5, fontSize: 14, lineHeight: 20, color: '#6B7280' },
