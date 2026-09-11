@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCategories } from '../context/categories-context';
+import { useAppSettings } from '../context/app-settings-context';
 import { useAppStyles } from '../lib/themed-styles';
 
 type CategoryPickerModalProps = {
@@ -28,14 +29,17 @@ type CategoryPickerModalProps = {
 export default function CategoryPickerModal({
   visible,
   selectedCategoryId,
-  title = 'Elegir categoría',
+  title,
   allowClear = false,
-  clearLabel = 'Todas las categorías',
+  clearLabel,
   onSelect,
   onClear,
   onClose,
 }: CategoryPickerModalProps) {
   const styles = useAppStyles(lightStyles);
+  const { t } = useAppSettings();
+  const effectiveTitle = title ?? t('chooseCategory');
+  const effectiveClearLabel = clearLabel ?? t('allCategories');
   const { categories } = useCategories();
   const [search, setSearch] = useState('');
 
@@ -45,20 +49,36 @@ export default function CategoryPickerModal({
     }
   }, [visible]);
 
-  const normalizedSearch = search
-    .trim()
-    .toLocaleLowerCase('es-ES');
+  const normalize = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase();
+
+  const normalizedSearch = normalize(search);
 
   const filteredCategories =
-    categories.filter((category) => {
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      return `${category.name} ${category.description}`
-        .toLocaleLowerCase('es-ES')
-        .includes(normalizedSearch);
-    });
+    categories
+      .map((category, index) => {
+        const name = normalize(category.name);
+        const description = normalize(category.description);
+        const score = !normalizedSearch
+          ? 0
+          : name === normalizedSearch
+            ? 0
+            : name.startsWith(normalizedSearch)
+              ? 1
+              : name.includes(normalizedSearch)
+                ? 2
+                : description.includes(normalizedSearch)
+                  ? 3
+                  : 99;
+        return { category, index, score };
+      })
+      .filter((item) => item.score < 99)
+      .sort((a, b) => a.score - b.score || a.index - b.index)
+      .map((item) => item.category);
 
   return (
     <Modal
@@ -71,11 +91,11 @@ export default function CategoryPickerModal({
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>
-              {title}
+              {effectiveTitle}
             </Text>
 
             <Text style={styles.subtitle}>
-              Busca o selecciona una categoría.
+              {t('searchOrChoose')}
             </Text>
           </View>
 
@@ -102,7 +122,7 @@ export default function CategoryPickerModal({
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
-            placeholder="Buscar categoría..."
+            placeholder={t('searchCategory')}
             placeholderTextColor="#9CA3AF"
             autoCorrect={false}
           />
@@ -147,11 +167,11 @@ export default function CategoryPickerModal({
 
               <View style={styles.categoryText}>
                 <Text style={styles.categoryName}>
-                  {clearLabel}
+                  {effectiveClearLabel}
                 </Text>
 
                 <Text style={styles.description}>
-                  No limitar los resultados por categoría.
+                  {t('noCategoryFilter')}
                 </Text>
               </View>
 
@@ -245,7 +265,7 @@ export default function CategoryPickerModal({
               />
 
               <Text style={styles.emptyText}>
-                No encontramos ninguna categoría.
+                {t('noCategories')}
               </Text>
             </View>
           )}

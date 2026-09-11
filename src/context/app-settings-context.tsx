@@ -10,6 +10,15 @@ import React, {
 } from 'react';
 import { Appearance } from 'react-native';
 
+import {
+  AppLanguage,
+  LANGUAGE_LOCALES,
+  LanguagePreference,
+  TranslationKey,
+  resolveLanguage,
+  translate,
+} from '../lib/i18n';
+
 export const CURRENCIES = [
   { code: 'EUR', name: 'Euro', symbol: '€' },
   { code: 'USD', name: 'Dólar estadounidense', symbol: '$' },
@@ -25,6 +34,7 @@ export const CURRENCIES = [
 
 export type CurrencyCode = (typeof CURRENCIES)[number]['code'];
 export type ThemeMode = 'light' | 'dark';
+export type PlannedExecutionMode = 'automatic' | 'manual';
 
 type ExchangeRate = {
   rate: number;
@@ -38,6 +48,10 @@ type AppSettingsContextValue = {
   inputCurrency: CurrencyCode;
   displayCurrency: CurrencyCode;
   themeMode: ThemeMode;
+  languagePreference: LanguagePreference;
+  language: AppLanguage;
+  locale: string;
+  plannedExecutionMode: PlannedExecutionMode;
   isDark: boolean;
   hydrated: boolean;
   rates: Record<string, ExchangeRate>;
@@ -45,6 +59,9 @@ type AppSettingsContextValue = {
   setInputCurrency: (currency: CurrencyCode) => void;
   setDisplayCurrency: (currency: CurrencyCode) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  setLanguagePreference: (language: LanguagePreference) => void;
+  setPlannedExecutionMode: (mode: PlannedExecutionMode) => void;
+  t: (key: TranslationKey) => string;
   refreshRates: (
     sourceCurrencies?: CurrencyCode[],
     force?: boolean
@@ -79,11 +96,21 @@ export function currencyInfo(code: CurrencyCode) {
   return CURRENCIES.find((currency) => currency.code === code)!;
 }
 
+export function currencyName(code: CurrencyCode, language: AppLanguage) {
+  const names: Record<AppLanguage, Record<CurrencyCode, string>> = {
+    es: { EUR: 'Euro', USD: 'Dólar estadounidense', GBP: 'Libra esterlina', CHF: 'Franco suizo', JPY: 'Yen japonés', CAD: 'Dólar canadiense', AUD: 'Dólar australiano', CNY: 'Yuan chino', INR: 'Rupia india', MXN: 'Peso mexicano' },
+    en: { EUR: 'Euro', USD: 'US dollar', GBP: 'British pound', CHF: 'Swiss franc', JPY: 'Japanese yen', CAD: 'Canadian dollar', AUD: 'Australian dollar', CNY: 'Chinese yuan', INR: 'Indian rupee', MXN: 'Mexican peso' },
+    fr: { EUR: 'Euro', USD: 'Dollar américain', GBP: 'Livre sterling', CHF: 'Franc suisse', JPY: 'Yen japonais', CAD: 'Dollar canadien', AUD: 'Dollar australien', CNY: 'Yuan chinois', INR: 'Roupie indienne', MXN: 'Peso mexicain' },
+  };
+  return names[language][code];
+}
+
 export function formatCurrencyAmount(
   amount: number,
-  currency: CurrencyCode
+  currency: CurrencyCode,
+  locale = 'es-ES'
 ) {
-  return new Intl.NumberFormat('es-ES', {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
   }).format(amount);
@@ -94,12 +121,19 @@ export function AppSettingsProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const systemLanguage = resolveLanguage(
+    Intl.DateTimeFormat().resolvedOptions().locale
+  );
   const [inputCurrency, setInputCurrencyState] =
     useState<CurrencyCode>('EUR');
   const [displayCurrency, setDisplayCurrencyState] =
     useState<CurrencyCode>('EUR');
   const [themeMode, setThemeModeState] =
     useState<ThemeMode>('light');
+  const [languagePreference, setLanguagePreferenceState] =
+    useState<LanguagePreference>('system');
+  const [plannedExecutionMode, setPlannedExecutionModeState] =
+    useState<PlannedExecutionMode>('automatic');
   const [rates, setRates] = useState<Record<string, ExchangeRate>>({});
   const [rateStatus, setRateStatus] = useState<RateStatus>('idle');
   const [hydrated, setHydrated] = useState(false);
@@ -113,6 +147,8 @@ export function AppSettingsProvider({
           inputCurrency?: unknown;
           displayCurrency?: unknown;
           themeMode?: unknown;
+          languagePreference?: unknown;
+          plannedExecutionMode?: unknown;
           rates?: Record<string, ExchangeRate>;
         };
 
@@ -124,6 +160,20 @@ export function AppSettingsProvider({
         }
         if (parsed.themeMode === 'light' || parsed.themeMode === 'dark') {
           setThemeModeState(parsed.themeMode);
+        }
+        if (
+          parsed.languagePreference === 'system' ||
+          parsed.languagePreference === 'es' ||
+          parsed.languagePreference === 'en' ||
+          parsed.languagePreference === 'fr'
+        ) {
+          setLanguagePreferenceState(parsed.languagePreference);
+        }
+        if (
+          parsed.plannedExecutionMode === 'automatic' ||
+          parsed.plannedExecutionMode === 'manual'
+        ) {
+          setPlannedExecutionModeState(parsed.plannedExecutionMode);
         }
         if (parsed.rates && typeof parsed.rates === 'object') {
           setRates(parsed.rates);
@@ -143,11 +193,34 @@ export function AppSettingsProvider({
     if (!hydrated) return;
     void Storage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ inputCurrency, displayCurrency, themeMode, rates })
+      JSON.stringify({
+        inputCurrency,
+        displayCurrency,
+        themeMode,
+        languagePreference,
+        plannedExecutionMode,
+        rates,
+      })
     ).catch((error) => {
       console.warn('No se pudieron guardar los ajustes locales:', error);
     });
-  }, [displayCurrency, hydrated, inputCurrency, rates, themeMode]);
+  }, [
+    displayCurrency,
+    hydrated,
+    inputCurrency,
+    languagePreference,
+    plannedExecutionMode,
+    rates,
+    themeMode,
+  ]);
+
+  const language =
+    languagePreference === 'system' ? systemLanguage : languagePreference;
+  const locale = LANGUAGE_LOCALES[language];
+  const t = useCallback(
+    (key: TranslationKey) => translate(language, key),
+    [language]
+  );
 
   const refreshRates = useCallback(
     async (
@@ -262,9 +335,9 @@ export function AppSettingsProvider({
         ? convertAmount(amount, sourceCurrency)
         : amount;
 
-      return formatCurrencyAmount(value, currency);
+      return formatCurrencyAmount(value, currency, locale);
     },
-    [convertAmount, displayCurrency, getRate, inputCurrency]
+    [convertAmount, displayCurrency, getRate, inputCurrency, locale]
   );
 
   const value = useMemo<AppSettingsContextValue>(
@@ -272,6 +345,10 @@ export function AppSettingsProvider({
       inputCurrency,
       displayCurrency,
       themeMode,
+      languagePreference,
+      language,
+      locale,
+      plannedExecutionMode,
       isDark: themeMode === 'dark',
       hydrated,
       rates,
@@ -279,6 +356,9 @@ export function AppSettingsProvider({
       setInputCurrency: setInputCurrencyState,
       setDisplayCurrency: setDisplayCurrencyState,
       setThemeMode: setThemeModeState,
+      setLanguagePreference: setLanguagePreferenceState,
+      setPlannedExecutionMode: setPlannedExecutionModeState,
+      t,
       refreshRates,
       convertAmount,
       formatMoney,
@@ -291,10 +371,15 @@ export function AppSettingsProvider({
       getRate,
       hydrated,
       inputCurrency,
+      language,
+      languagePreference,
+      locale,
+      plannedExecutionMode,
       rateStatus,
       rates,
       refreshRates,
       themeMode,
+      t,
     ]
   );
 

@@ -20,10 +20,10 @@ import ExpenseEditorModal from '../expense-editor-modal';
 import IncomeEditorModal from '../income-editor-modal';
 import SettingsButton from '../settings-button';
 import { CurrencyCode, currencyInfo, formatCurrencyAmount, useAppSettings } from '../../context/app-settings-context';
-import { useCategories } from '../../context/categories-context';
+import { Category, useCategories } from '../../context/categories-context';
 import { Expense, useExpenses } from '../../context/expenses-context';
 import { useFeedback } from '../../context/feedback-context';
-import { Income, RecurringFrequency, RecurringKind, RecurringTransaction, useFinance } from '../../context/finance-context';
+import { Budget, Income, RecurringFrequency, RecurringKind, RecurringTransaction, useFinance } from '../../context/finance-context';
 import { recurringDatesBetween } from '../../lib/recurring-dates';
 import { useAppStyles } from '../../lib/themed-styles';
 
@@ -39,17 +39,17 @@ function sameMonth(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
 
-function formatMonth(date: Date) {
-  const value = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(date);
+function formatMonth(date: Date, locale: string) {
+  const value = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(date);
+function formatDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date);
 }
 
-const frequencyLabels: Record<RecurringFrequency, string> = {
-  weekly: 'Semanal', monthly: 'Mensual', yearly: 'Anual',
+const frequencyLabelKeys: Record<RecurringFrequency, 'weekly' | 'monthly' | 'yearly'> = {
+  weekly: 'weekly', monthly: 'monthly', yearly: 'yearly',
 };
 
 type UpcomingMovement = {
@@ -74,12 +74,12 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
   const { categories, getCategoryById } = useCategories();
   const {
     incomes, budgets, recurring, setupRequired,
-    saveBudget, deleteBudget, addRecurring, updateRecurring, toggleRecurring, deleteRecurring,
+    saveBudget, updateBudget, deleteBudget, addRecurring, updateRecurring, toggleRecurring, deleteRecurring,
   } = useFinance();
-  const { convertAmount, displayCurrency, formatMoney } = useAppSettings();
-  const { showFeedback } = useFeedback();
+  const { convertAmount, displayCurrency, formatMoney, locale, t } = useAppSettings();
   const [anchor, setAnchor] = useState(monthStart(new Date()));
   const [budgetVisible, setBudgetVisible] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [recurringVisible, setRecurringVisible] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -129,8 +129,8 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
     const horizon = new Date(start);
     horizon.setFullYear(horizon.getFullYear() + 1);
     horizon.setDate(horizon.getDate() + 1);
-    const plannedExpenses = expenses.filter((item) => item.status === 'planned' && item.transactionDate >= start);
-    const plannedIncomes = incomes.filter((item) => item.status === 'planned' && item.transactionDate >= start);
+    const plannedExpenses = expenses.filter((item) => item.status === 'planned');
+    const plannedIncomes = incomes.filter((item) => item.status === 'planned');
     const projected = recurring
       .filter((rule) => rule.active)
       .flatMap((rule) => recurringDatesBetween(rule.nextRunDate, rule.frequency, start, horizon)
@@ -170,16 +170,9 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
     return { budget, spent, limit, ratio: limit > 0 ? spent / limit : 0 };
   }), [monthBudgets, monthExpenses, projectedMonthExpenses, convertAmount]);
 
-  function removeBudget(id: string) {
-    Alert.alert('Eliminar presupuesto', '¿Quieres eliminar este límite mensual?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => void deleteBudget(id).catch(() => showFeedback('No se pudo eliminar.', 'error')) },
-    ]);
-  }
-
   function editUpcomingMovement(movement: UpcomingMovement) {
     setUpcomingVisible(false);
-    if (movement.recurringId) {
+    if (movement.id.startsWith('projection-') && movement.recurringId) {
       const rule = recurring.find((item) => item.id === movement.recurringId);
       if (rule) {
         setEditingRecurring(rule);
@@ -195,14 +188,6 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
   }
 
   function editIncomeMovement(income: Income) {
-    if (income.status === 'planned' && income.recurringId) {
-      const rule = recurring.find((item) => item.id === income.recurringId);
-      if (rule) {
-        setEditingRecurring(rule);
-        setRecurringVisible(true);
-        return;
-      }
-    }
     setEditingIncome(income);
   }
 
@@ -211,8 +196,8 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.pageHeader}>
           <View style={styles.flex}>
-            <Text style={styles.title}>Planificación</Text>
-            <Text style={styles.subtitle}>Tu balance, límites y próximos movimientos.</Text>
+            <Text style={styles.title}>{t('planning')}</Text>
+            <Text style={styles.subtitle}>{t('planningSubtitle')}</Text>
           </View>
           <SettingsButton onPress={onOpenSettings} />
         </View>
@@ -221,8 +206,8 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
           <View style={styles.setupCard}>
             <Ionicons name="construct-outline" size={23} color="#92400E" />
             <View style={styles.flex}>
-              <Text style={styles.setupTitle}>Falta completar la configuración</Text>
-              <Text style={styles.setupText}>Prepara Planificación para activar ingresos, presupuestos y recurrencias.</Text>
+              <Text style={styles.setupTitle}>{t('setupMissing')}</Text>
+              <Text style={styles.setupText}>{t('setupPlanning')}</Text>
             </View>
           </View>
         )}
@@ -231,66 +216,66 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
           <TouchableOpacity onPress={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}>
             <Ionicons name="chevron-back" size={22} color="#4F46E5" />
           </TouchableOpacity>
-          <Text style={styles.monthText}>{formatMonth(anchor)}</Text>
+          <Text style={styles.monthText}>{formatMonth(anchor, locale)}</Text>
           <TouchableOpacity onPress={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}>
             <Ionicons name="chevron-forward" size={22} color="#4F46E5" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Balance del mes</Text>
+          <Text style={styles.balanceLabel}>{t('monthBalance')}</Text>
           <Text style={[styles.balanceAmount, balance < 0 && styles.negative]}>{formatMoney(balance, displayCurrency)}</Text>
           <View style={styles.balanceDetails}>
-            <View><Text style={styles.detailLabel}>Ingresos</Text><Text style={styles.incomeText}>{formatMoney(incomeTotal, displayCurrency)}</Text></View>
-            <View><Text style={styles.detailLabel}>Gastos totales</Text><Text style={styles.expenseText}>{formatMoney(expenseTotal, displayCurrency)}</Text></View>
-            <View><Text style={styles.detailLabel}>Ahorro</Text><Text style={styles.detailValue}>{Math.round(savingsRate)}%</Text></View>
+            <View><Text style={styles.detailLabel}>{t('incomes')}</Text><Text style={styles.incomeText}>{formatMoney(incomeTotal, displayCurrency)}</Text></View>
+            <View><Text style={styles.detailLabel}>{t('totalExpenses')}</Text><Text style={styles.expenseText}>{formatMoney(expenseTotal, displayCurrency)}</Text></View>
+            <View><Text style={styles.detailLabel}>{t('savings')}</Text><Text style={styles.detailValue}>{Math.round(savingsRate)}%</Text></View>
           </View>
         </View>
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Próximos movimientos</Text><Text style={styles.sectionHint}>Todos los previstos · recurrentes a 12 meses</Text></View>
-          {upcoming.length > 0 && <TouchableOpacity style={styles.viewAllButton} onPress={() => setUpcomingVisible(true)}><Text style={styles.viewAllText}>Ver todos ({upcoming.length})</Text><Ionicons name="chevron-forward" size={17} color="#4F46E5" /></TouchableOpacity>}
+          <View><Text style={styles.sectionTitle}>{t('upcomingMovements')}</Text><Text style={styles.sectionHint}>{t('upcoming12Months')}</Text></View>
+          {upcoming.length > 0 && <TouchableOpacity style={styles.viewAllButton} onPress={() => setUpcomingVisible(true)}><Text style={styles.viewAllText}>{t('viewAll')} ({upcoming.length})</Text><Ionicons name="chevron-forward" size={17} color="#4F46E5" /></TouchableOpacity>}
         </View>
-        {upcoming.length === 0 ? <EmptyCard icon="calendar-outline" text="No tienes ingresos ni gastos próximos." /> : upcoming.slice(0, 3).map((item) => {
+        {upcoming.length === 0 ? <EmptyCard icon="calendar-outline" text={t('noUpcoming')} /> : upcoming.slice(0, 3).map((item) => {
           const category = item.categoryId ? getCategoryById(item.categoryId) : null;
           return <TouchableOpacity key={`${item.kind}-${item.id}`} activeOpacity={0.75} style={styles.listCard} onPress={() => editUpcomingMovement(item)}>
             <View style={[styles.iconBox, { backgroundColor: item.kind === 'income' ? '#ECFDF5' : `${category?.color ?? '#4F46E5'}18` }]}><Ionicons name={item.kind === 'income' ? 'arrow-down' : (category?.icon ?? 'arrow-up') as any} size={21} color={item.kind === 'income' ? '#059669' : category?.color ?? '#4F46E5'} /></View>
-            <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto')}</Text><Text style={styles.cardMeta}>{formatDate(item.date)}{item.recurring ? ' · Recurrente' : ' · Previsto'}</Text></View>
-            <Text style={[styles.cardAmount, item.kind === 'income' ? styles.incomeText : styles.upcomingExpense]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency)}</Text>
+            <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? t('income') : category?.name ?? t('expense'))}</Text><Text style={styles.cardMeta}>{formatDate(item.date, locale)}{item.recurring ? ` · ${t('recurring')}` : ` · ${t('planned')}`}</Text></View>
+            <Text style={[styles.cardAmount, item.kind === 'income' ? styles.incomeText : styles.upcomingExpense]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency, locale)}</Text>
           </TouchableOpacity>;
         })}
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Presupuestos</Text><Text style={styles.sectionHint}>Límites para este mes</Text></View>
-          <TouchableOpacity style={styles.smallAdd} onPress={() => setBudgetVisible(true)} disabled={setupRequired}>
-            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>Añadir</Text>
+          <View><Text style={styles.sectionTitle}>{t('budgets')}</Text><Text style={styles.sectionHint}>{t('monthLimits')}</Text></View>
+          <TouchableOpacity style={styles.smallAdd} onPress={() => { setEditingBudget(null); setBudgetVisible(true); }} disabled={setupRequired}>
+            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>{t('addAction')}</Text>
           </TouchableOpacity>
         </View>
         {budgetRows.length === 0 ? (
-          <EmptyCard icon="speedometer-outline" text="Crea un límite total o por categoría." />
+          <EmptyCard icon="speedometer-outline" text={t('createBudgetHint')} />
         ) : budgetRows.map(({ budget, spent, limit, ratio }) => {
           const category = budget.categoryId ? getCategoryById(budget.categoryId) : null;
           const color = ratio >= 1 ? '#DC2626' : ratio >= 0.8 ? '#D97706' : category?.color ?? '#4F46E5';
           return (
-            <TouchableOpacity key={budget.id} style={styles.listCard} onLongPress={() => removeBudget(budget.id)}>
+            <TouchableOpacity key={budget.id} activeOpacity={0.75} style={styles.listCard} onPress={() => { setEditingBudget(budget); setBudgetVisible(true); }}>
               <View style={[styles.iconBox, { backgroundColor: `${color}18` }]}><Ionicons name={(category?.icon ?? 'pie-chart-outline') as any} size={21} color={color} /></View>
               <View style={styles.flex}>
-                <View style={styles.rowBetween}><Text style={styles.cardTitle}>{category?.name ?? 'Presupuesto total'}</Text><Text style={styles.cardAmount}>{formatMoney(spent, displayCurrency)} / {formatMoney(limit, displayCurrency)}</Text></View>
+                <View style={styles.rowBetween}><Text style={styles.cardTitle}>{category?.name ?? t('totalBudget')}</Text><Text style={styles.cardAmount}>{formatMoney(spent, displayCurrency)} / {formatMoney(limit, displayCurrency)}</Text></View>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.min(ratio * 100, 100)}%`, backgroundColor: color }]} /></View>
-                <Text style={[styles.progressText, { color }]}>{Math.round(ratio * 100)}% utilizado · mantén pulsado para eliminar</Text>
+                <Text style={[styles.progressText, { color }]}>{Math.round(ratio * 100)}% {t('used')} · {t('tapToEdit')}</Text>
               </View>
             </TouchableOpacity>
           );
         })}
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Recurrentes</Text><Text style={styles.sectionHint}>Cada repetición aparece en la previsión</Text></View>
+          <View><Text style={styles.sectionTitle}>{t('recurringPlural')}</Text><Text style={styles.sectionHint}>{t('recurringForecast')}</Text></View>
           <TouchableOpacity style={styles.smallAdd} onPress={() => setRecurringVisible(true)} disabled={setupRequired}>
-            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>Añadir</Text>
+            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>{t('addAction')}</Text>
           </TouchableOpacity>
         </View>
         {recurring.length === 0 ? (
-          <EmptyCard icon="repeat-outline" text="Añade alquiler, nómina o suscripciones." />
+          <EmptyCard icon="repeat-outline" text={t('recurringEmpty')} />
         ) : recurring.map((item) => {
           const category = item.categoryId ? getCategoryById(item.categoryId) : null;
           const color = item.kind === 'income' ? '#059669' : category?.color ?? '#4F46E5';
@@ -302,30 +287,39 @@ export default function PlanningScreen({ onAddIncome, onOpenSettings }: { onAddI
             >
               <View style={[styles.iconBox, { backgroundColor: `${color}18` }]}><Ionicons name={item.kind === 'income' ? 'arrow-down' : 'repeat-outline'} size={21} color={color} /></View>
               <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto')}</Text>
-                <Text style={styles.cardMeta}>{frequencyLabels[item.frequency]} · próximo {formatDate(item.nextRunDate)} · toca para editar</Text>
+                <Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? t('income') : category?.name ?? t('expense'))}</Text>
+                <Text style={styles.cardMeta}>{t(frequencyLabelKeys[item.frequency])} · {t('next')} {formatDate(item.nextRunDate, locale)} · {t('tapToEdit')}</Text>
               </View>
-              <View style={styles.trailing}><Text style={[styles.cardAmount, item.kind === 'income' && styles.incomeText]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency)}</Text><Switch value={item.active} onValueChange={(active) => void toggleRecurring(item.id, active)} /></View>
+              <View style={styles.trailing}><Text style={[styles.cardAmount, item.kind === 'income' && styles.incomeText]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency, locale)}</Text><Switch value={item.active} onValueChange={(active) => void toggleRecurring(item.id, active)} /></View>
             </TouchableOpacity>
           );
         })}
 
         <View style={styles.sectionHeader}>
-          <View><Text style={styles.sectionTitle}>Ingresos</Text><Text style={styles.sectionHint}>Entradas recientes</Text></View>
+          <View><Text style={styles.sectionTitle}>{t('incomes')}</Text><Text style={styles.sectionHint}>{t('recentEntries')}</Text></View>
           <TouchableOpacity style={[styles.smallAdd, styles.incomeAdd]} onPress={onAddIncome} disabled={setupRequired}>
-            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>Ingreso</Text>
+            <Ionicons name="add" size={21} color="#FFFFFF" /><Text style={styles.smallAddText}>{t('income')}</Text>
           </TouchableOpacity>
         </View>
-        {recentIncomes.length === 0 ? <EmptyCard icon="wallet-outline" text="Añade un ingreso para calcular tu ahorro." /> : recentIncomes.map((income) => (
+        {recentIncomes.length === 0 ? <EmptyCard icon="wallet-outline" text={t('addIncomeHint')} /> : recentIncomes.map((income) => (
           <TouchableOpacity key={income.id} activeOpacity={0.75} style={styles.listCard} onPress={() => editIncomeMovement(income)}>
             <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}><Ionicons name="arrow-down" size={21} color="#059669" /></View>
-            <View style={styles.flex}><Text style={styles.cardTitle}>{income.description || 'Ingreso'}</Text><Text style={styles.cardMeta}>{formatDate(income.transactionDate)}{income.status === 'planned' ? ' · Previsto' : ''}</Text></View>
-            <Text style={[styles.cardAmount, styles.incomeText]}>+{formatCurrencyAmount(income.amount, income.currency)}</Text>
+            <View style={styles.flex}><Text style={styles.cardTitle}>{income.description || t('income')}</Text><Text style={styles.cardMeta}>{formatDate(income.transactionDate, locale)}{income.status === 'planned' ? ` · ${t('planned')}` : ''}</Text></View>
+            <Text style={[styles.cardAmount, styles.incomeText]}>+{formatCurrencyAmount(income.amount, income.currency, locale)}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <BudgetModal visible={budgetVisible} month={anchor} categories={categories} onClose={() => setBudgetVisible(false)} onSave={saveBudget} />
+      <BudgetModal
+        visible={budgetVisible}
+        month={anchor}
+        categories={categories}
+        editing={editingBudget}
+        onClose={() => { setBudgetVisible(false); setEditingBudget(null); }}
+        onSave={saveBudget}
+        onUpdate={updateBudget}
+        onDelete={deleteBudget}
+      />
       <RecurringModal
         visible={recurringVisible}
         editing={editingRecurring}
@@ -354,11 +348,12 @@ function UpcomingMovementsModal({ visible, movements, onEdit, onClose }: {
 }) {
   const styles = useAppStyles(lightStyles);
   const { getCategoryById } = useCategories();
+  const { locale, t } = useAppSettings();
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
     <SafeAreaView style={styles.modalSafe}>
       <View style={styles.upcomingModalHeader}>
         <TouchableOpacity style={styles.closeButton} onPress={onClose}><Ionicons name="arrow-back" size={22} color="#374151" /></TouchableOpacity>
-        <View style={styles.flex}><Text style={styles.modalTitle}>Próximos movimientos</Text><Text style={styles.modalHint}>{movements.length} previstos en total</Text></View>
+        <View style={styles.flex}><Text style={styles.modalTitle}>{t('upcomingMovements')}</Text><Text style={styles.modalHint}>{movements.length} {t('planned').toLocaleLowerCase(locale)}</Text></View>
       </View>
       <ScrollView contentContainerStyle={styles.upcomingList}>
         {movements.map((item) => {
@@ -366,8 +361,8 @@ function UpcomingMovementsModal({ visible, movements, onEdit, onClose }: {
           const color = item.kind === 'income' ? '#059669' : category?.color ?? '#4F46E5';
           return <TouchableOpacity key={`${item.kind}-${item.id}`} activeOpacity={0.75} style={styles.listCard} onPress={() => onEdit(item)}>
             <View style={[styles.iconBox, { backgroundColor: `${color}18` }]}><Ionicons name={item.kind === 'income' ? 'arrow-down' : (category?.icon ?? 'arrow-up') as any} size={21} color={color} /></View>
-            <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto')}</Text><Text style={styles.cardMeta}>{formatDate(item.date)} · {item.kind === 'income' ? 'Ingreso' : category?.name ?? 'Gasto'}{item.recurring ? ' recurrente' : ''}</Text></View>
-            <Text style={[styles.cardAmount, { color }]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency)}</Text>
+            <View style={styles.flex}><Text style={styles.cardTitle}>{item.description || (item.kind === 'income' ? t('income') : category?.name ?? t('expense'))}</Text><Text style={styles.cardMeta}>{formatDate(item.date, locale)} · {item.kind === 'income' ? t('income') : category?.name ?? t('expense')}{item.recurring ? ` · ${t('recurring')}` : ''}</Text></View>
+            <Text style={[styles.cardAmount, { color }]}>{item.kind === 'income' ? '+' : '−'}{formatCurrencyAmount(item.amount, item.currency, locale)}</Text>
           </TouchableOpacity>;
         })}
       </ScrollView>
@@ -375,41 +370,91 @@ function UpcomingMovementsModal({ visible, movements, onEdit, onClose }: {
   </Modal>;
 }
 
-function BudgetModal({ visible, month, categories, onClose, onSave }: any) {
+function BudgetModal({ visible, month, categories, editing, onClose, onSave, onUpdate, onDelete }: {
+  visible: boolean;
+  month: Date;
+  categories: Category[];
+  editing: Budget | null;
+  onClose: () => void;
+  onSave: (input: { categoryId: string | null; amount: number; currency: CurrencyCode; monthStart: Date }) => Promise<void>;
+  onUpdate: (id: string, input: { categoryId: string | null; amount: number; currency: CurrencyCode; monthStart: Date }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
   const styles = useAppStyles(lightStyles);
-  const { inputCurrency } = useAppSettings();
+  const { inputCurrency, locale, t } = useAppSettings();
   const { showFeedback } = useFeedback();
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(inputCurrency);
+  const [selectedMonth, setSelectedMonth] = useState(monthStart(month));
   const [categoryPicker, setCategoryPicker] = useState(false);
   const [currencyPicker, setCurrencyPicker] = useState(false);
-  const category = categories.find((item: any) => item.id === categoryId);
+  const [monthPicker, setMonthPicker] = useState(false);
+  const category = categories.find((item) => item.id === categoryId);
+
+  useEffect(() => {
+    if (!visible) return;
+    setCategoryId(editing?.categoryId ?? null);
+    setAmount(editing ? String(editing.amount).replace('.', ',') : '');
+    setCurrency(editing?.currency ?? inputCurrency);
+    setSelectedMonth(monthStart(editing?.monthStart ?? month));
+  }, [editing, inputCurrency, month, visible]);
+
   async function submit() {
     const parsed = Number(amount.replace(',', '.'));
-    if (!Number.isFinite(parsed) || parsed <= 0) return showFeedback('Introduce un límite válido.', 'error');
+    if (!Number.isFinite(parsed) || parsed <= 0) return showFeedback(t('invalidLimit'), 'error');
+    const input = { categoryId, amount: parsed, currency, monthStart: monthStart(selectedMonth) };
     try {
-      await onSave({ categoryId, amount: parsed, currency, monthStart: monthStart(month) });
-      setAmount(''); onClose(); showFeedback('Presupuesto guardado');
-    } catch { showFeedback('No se pudo guardar el presupuesto.', 'error'); }
+      if (editing) await onUpdate(editing.id, input);
+      else await onSave(input);
+      onClose();
+      showFeedback(editing ? t('budgetUpdated') : t('budgetSaved'));
+    } catch {
+      showFeedback(t('budgetSaveError'), 'error');
+    }
   }
-  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.modalSafe}><ScrollView contentContainerStyle={styles.modalContent}>
-    <ModalHeader title="Nuevo presupuesto" onClose={onClose} />
-    <Text style={styles.modalHint}>Límite para {formatMonth(month)}. Si ya existe, se actualizará.</Text>
-    <Text style={styles.label}>Ámbito</Text>
-    <TouchableOpacity style={styles.selector} onPress={() => setCategoryPicker(true)}><Text style={styles.selectorText}>{category?.name ?? 'Todo el gasto mensual'}</Text><Ionicons name="chevron-down" size={18} color="#6B7280" /></TouchableOpacity>
-    <Text style={styles.label}>Límite</Text>
+
+  function confirmDelete() {
+    if (!editing) return;
+    Alert.alert(t('deleteBudget'), t('budgetDeleteConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await onDelete(editing.id);
+            onClose();
+            showFeedback(t('budgetDeleted'));
+          } catch {
+            showFeedback(t('budgetDeleteError'), 'error');
+          }
+        },
+      },
+    ]);
+  }
+
+  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.modalSafe}><ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+    <ModalHeader title={editing ? t('editBudget') : t('newBudget')} onClose={onClose} />
+    <Text style={styles.modalHint}>{t('budgetEditorHint')} {formatMonth(selectedMonth, locale)}.</Text>
+    <Text style={styles.label}>{t('scope')}</Text>
+    <TouchableOpacity style={styles.selector} onPress={() => setCategoryPicker(true)}><Text style={styles.selectorText}>{category?.name ?? t('allMonthlySpend')}</Text><Ionicons name="chevron-down" size={18} color="#6B7280" /></TouchableOpacity>
+    <Text style={styles.label}>{t('limit')}</Text>
     <View style={styles.amountEditor}><TouchableOpacity onPress={() => setCurrencyPicker(true)}><Text style={styles.currencyEditor}>{currencyInfo(currency).symbol}</Text></TouchableOpacity><TextInput style={styles.modalInput} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" /></View>
-    <TouchableOpacity style={styles.primaryButton} onPress={() => void submit()}><Text style={styles.primaryText}>Guardar presupuesto</Text></TouchableOpacity>
+    <Text style={styles.label}>{t('budgetMonth')}</Text>
+    <TouchableOpacity style={styles.selector} onPress={() => setMonthPicker(true)}><Text style={styles.selectorText}>{formatMonth(selectedMonth, locale)}</Text><Ionicons name="calendar-outline" size={18} color="#6B7280" /></TouchableOpacity>
+    <TouchableOpacity style={styles.primaryButton} onPress={() => void submit()}><Text style={styles.primaryText}>{editing ? t('saveChanges') : t('saveBudget')}</Text></TouchableOpacity>
+    {editing && <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}><Text style={styles.deleteText}>{t('deleteBudget')}</Text></TouchableOpacity>}
   </ScrollView>
-  <CategoryPickerModal visible={categoryPicker} selectedCategoryId={categoryId} allowClear clearLabel="Todo el gasto mensual" onClear={() => { setCategoryId(null); setCategoryPicker(false); }} onSelect={(id) => { setCategoryId(id); setCategoryPicker(false); }} onClose={() => setCategoryPicker(false)} />
+  <CategoryPickerModal visible={categoryPicker} selectedCategoryId={categoryId} allowClear clearLabel={t('allMonthlySpend')} onClear={() => { setCategoryId(null); setCategoryPicker(false); }} onSelect={(id) => { setCategoryId(id); setCategoryPicker(false); }} onClose={() => setCategoryPicker(false)} />
   <CurrencyPickerModal visible={currencyPicker} selected={currency} onSelect={setCurrency} onClose={() => setCurrencyPicker(false)} />
+  {monthPicker && <DateTimePicker value={selectedMonth} mode="date" presentation="dialog" onValueChange={(_event, value) => { setSelectedMonth(monthStart(value)); setMonthPicker(false); }} onDismiss={() => setMonthPicker(false)} />}
   </SafeAreaView></Modal>;
 }
 
 function RecurringModal({ visible, editing, onClose, onSave, onUpdate, onDelete }: any) {
   const styles = useAppStyles(lightStyles);
-  const { inputCurrency } = useAppSettings();
+  const { inputCurrency, locale, t } = useAppSettings();
   const { getCategoryById } = useCategories();
   const { showFeedback } = useFeedback();
   const [kind, setKind] = useState<RecurringKind>('expense');
@@ -446,15 +491,15 @@ function RecurringModal({ visible, editing, onClose, onSave, onUpdate, onDelete 
     } catch { showFeedback('No se pudo guardar la recurrencia.', 'error'); }
   }
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.modalSafe}><ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-    <ModalHeader title={editing ? 'Editar recurrente' : 'Nuevo recurrente'} onClose={onClose} />
-    <View style={styles.kindRow}><TouchableOpacity style={[styles.kindChip, kind === 'expense' && styles.kindExpense]} onPress={() => setKind('expense')}><Text style={[styles.kindText, kind === 'expense' && styles.kindTextActive]}>Gasto</Text></TouchableOpacity><TouchableOpacity style={[styles.kindChip, kind === 'income' && styles.kindIncome]} onPress={() => setKind('income')}><Text style={[styles.kindText, kind === 'income' && styles.kindTextActive]}>Ingreso</Text></TouchableOpacity></View>
-    <Text style={styles.label}>Concepto</Text><TextInput style={styles.textInput} value={description} onChangeText={setDescription} placeholder="Alquiler, nómina, plataforma…" placeholderTextColor="#9CA3AF" />
-    <Text style={styles.label}>Importe</Text><View style={styles.amountEditor}><TouchableOpacity onPress={() => setCurrencyPicker(true)}><Text style={styles.currencyEditor}>{currencyInfo(currency).symbol}</Text></TouchableOpacity><TextInput style={styles.modalInput} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" /></View>
-    {kind === 'expense' && <><Text style={styles.label}>Categoría</Text><TouchableOpacity style={styles.selector} onPress={() => setCategoryPicker(true)}><Text style={styles.selectorText}>{getCategoryById(categoryId)?.name ?? 'Elegir categoría'}</Text><Ionicons name="chevron-down" size={18} color="#6B7280" /></TouchableOpacity></>}
-    <Text style={styles.label}>Frecuencia</Text><View style={styles.frequencyRow}>{(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((item) => <TouchableOpacity key={item} style={[styles.frequencyChip, frequency === item && styles.frequencyActive]} onPress={() => setFrequency(item)}><Text style={[styles.frequencyText, frequency === item && styles.frequencyTextActive]}>{frequencyLabels[item]}</Text></TouchableOpacity>)}</View>
-    <Text style={styles.label}>Próximo vencimiento</Text><TouchableOpacity style={styles.selector} onPress={() => setDatePicker(true)}><Text style={styles.selectorText}>{formatDate(date)}</Text><Ionicons name="calendar-outline" size={18} color="#6B7280" /></TouchableOpacity>
-    <TouchableOpacity style={styles.primaryButton} onPress={() => void submit()}><Text style={styles.primaryText}>{editing ? 'Guardar cambios' : 'Crear recurrencia'}</Text></TouchableOpacity>
-    {editing && <TouchableOpacity style={styles.deleteButton} onPress={() => Alert.alert('Eliminar recurrencia', 'El próximo movimiento previsto también se eliminará.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar', style: 'destructive', onPress: async () => { try { await onDelete(editing.id); onClose(); showFeedback('Recurrencia eliminada'); } catch { showFeedback('No se pudo eliminar.', 'error'); } } }])}><Text style={styles.deleteText}>Eliminar recurrencia</Text></TouchableOpacity>}
+    <ModalHeader title={editing ? t('editRecurring') : t('newRecurring')} onClose={onClose} />
+    <View style={styles.kindRow}><TouchableOpacity style={[styles.kindChip, kind === 'expense' && styles.kindExpense]} onPress={() => setKind('expense')}><Text style={[styles.kindText, kind === 'expense' && styles.kindTextActive]}>{t('expense')}</Text></TouchableOpacity><TouchableOpacity style={[styles.kindChip, kind === 'income' && styles.kindIncome]} onPress={() => setKind('income')}><Text style={[styles.kindText, kind === 'income' && styles.kindTextActive]}>{t('income')}</Text></TouchableOpacity></View>
+    <Text style={styles.label}>{t('concept')}</Text><TextInput style={styles.textInput} value={description} onChangeText={setDescription} placeholder={t('recurringPlaceholder')} placeholderTextColor="#9CA3AF" />
+    <Text style={styles.label}>{t('amount')}</Text><View style={styles.amountEditor}><TouchableOpacity onPress={() => setCurrencyPicker(true)}><Text style={styles.currencyEditor}>{currencyInfo(currency).symbol}</Text></TouchableOpacity><TextInput style={styles.modalInput} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" /></View>
+    {kind === 'expense' && <><Text style={styles.label}>{t('category')}</Text><TouchableOpacity style={styles.selector} onPress={() => setCategoryPicker(true)}><Text style={styles.selectorText}>{getCategoryById(categoryId)?.name ?? t('chooseCategory')}</Text><Ionicons name="chevron-down" size={18} color="#6B7280" /></TouchableOpacity></>}
+    <Text style={styles.label}>{t('frequency')}</Text><View style={styles.frequencyRow}>{(['weekly', 'monthly', 'yearly'] as RecurringFrequency[]).map((item) => <TouchableOpacity key={item} style={[styles.frequencyChip, frequency === item && styles.frequencyActive]} onPress={() => setFrequency(item)}><Text style={[styles.frequencyText, frequency === item && styles.frequencyTextActive]}>{t(frequencyLabelKeys[item])}</Text></TouchableOpacity>)}</View>
+    <Text style={styles.label}>{t('nextDue')}</Text><TouchableOpacity style={styles.selector} onPress={() => setDatePicker(true)}><Text style={styles.selectorText}>{formatDate(date, locale)}</Text><Ionicons name="calendar-outline" size={18} color="#6B7280" /></TouchableOpacity>
+    <TouchableOpacity style={styles.primaryButton} onPress={() => void submit()}><Text style={styles.primaryText}>{editing ? t('saveChanges') : t('createRecurring')}</Text></TouchableOpacity>
+    {editing && <TouchableOpacity style={styles.deleteButton} onPress={() => Alert.alert(t('deleteRecurring'), t('deleteConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('delete'), style: 'destructive', onPress: async () => { try { await onDelete(editing.id); onClose(); } catch { showFeedback(t('movementCompleteError'), 'error'); } } }])}><Text style={styles.deleteText}>{t('deleteRecurring')}</Text></TouchableOpacity>}
   </ScrollView>
   <CategoryPickerModal visible={categoryPicker} selectedCategoryId={categoryId} onSelect={(id) => { setCategoryId(id); setCategoryPicker(false); }} onClose={() => setCategoryPicker(false)} />
   <CurrencyPickerModal visible={currencyPicker} selected={currency} onSelect={setCurrency} onClose={() => setCurrencyPicker(false)} />

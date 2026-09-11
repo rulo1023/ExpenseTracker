@@ -31,22 +31,24 @@ function sameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', {
+function formatDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric', month: 'short', year: 'numeric',
   }).format(date);
 }
 
 export default function AddIncomeScreen({
+  initialDate,
   onSwitchExpense,
   onOpenSettings,
 }: {
+  initialDate?: Date | null;
   onSwitchExpense: () => void;
   onOpenSettings: () => void;
 }) {
   const styles = useAppStyles(lightStyles);
   const { addIncome, setupRequired } = useFinance();
-  const { inputCurrency } = useAppSettings();
+  const { inputCurrency, locale, t } = useAppSettings();
   const { showFeedback } = useFeedback();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -58,6 +60,12 @@ export default function AddIncomeScreen({
   const amountRef = useRef<TextInput>(null);
 
   useEffect(() => setCurrency(inputCurrency), [inputCurrency]);
+  useEffect(() => {
+    if (initialDate) {
+      setDate(new Date(initialDate));
+      setShowDate(false);
+    }
+  }, [initialDate]);
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -68,12 +76,12 @@ export default function AddIncomeScreen({
   async function save() {
     const parsed = Number(amount.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      showFeedback('Introduce un importe válido.', 'error');
+      showFeedback(t('invalidAmount'), 'error');
       amountRef.current?.focus();
       return;
     }
     if (setupRequired) {
-      showFeedback('Falta completar la configuración de Planificación.', 'error');
+      showFeedback(t('setupMissing'), 'error');
       return;
     }
     try {
@@ -89,10 +97,10 @@ export default function AddIncomeScreen({
       setAmount('');
       setDate(new Date());
       setCurrency(inputCurrency);
-      showFeedback('Ingreso añadido');
+      showFeedback(t('incomeSaved'));
     } catch (error) {
       console.error('Error saving income:', error);
-      showFeedback('No se pudo guardar el ingreso.', 'error');
+      showFeedback(t('incomeSaveError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -105,33 +113,33 @@ export default function AddIncomeScreen({
           <View style={styles.topBar}>
             <View style={styles.modeRow}>
               <TouchableOpacity style={styles.modeInactive} onPress={onSwitchExpense}>
-                <Text style={styles.modeInactiveText}>Gasto</Text>
+                <Text style={styles.modeInactiveText}>{t('expense')}</Text>
               </TouchableOpacity>
               <View style={styles.modeActive}>
-                <Text style={styles.modeActiveText}>Ingreso</Text>
+                <Text style={styles.modeActiveText}>{t('income')}</Text>
               </View>
             </View>
             <SettingsButton onPress={onOpenSettings} />
           </View>
 
-          <Text style={styles.title}>Nuevo ingreso</Text>
-          <Text style={styles.subtitle}>Registra nómina, devolución u otra entrada.</Text>
+          <Text style={styles.title}>{t('newIncome')}</Text>
+          <Text style={styles.subtitle}>{t('incomeSubtitle')}</Text>
 
           <View style={styles.fieldsRow}>
             <View style={styles.conceptField}>
-              <Text style={styles.label}>Concepto</Text>
+              <Text style={styles.label}>{t('concept')}</Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
                 style={styles.input}
-                placeholder="Nómina, devolución…"
+                placeholder={t('incomePlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 returnKeyType="next"
                 onSubmitEditing={() => amountRef.current?.focus()}
               />
             </View>
             <View style={styles.amountField}>
-              <Text style={styles.label}>Importe</Text>
+              <Text style={styles.label}>{t('amount')}</Text>
               <View style={styles.amountBox}>
                 <TouchableOpacity style={styles.currencyButton} onPress={() => setShowCurrency(true)}>
                   <Text style={styles.currencySymbol}>{currencyInfo(currency).symbol}</Text>
@@ -149,29 +157,29 @@ export default function AddIncomeScreen({
             </View>
           </View>
 
-          <Text style={styles.label}>Fecha</Text>
+          <Text style={styles.label}>{t('date')}</Text>
           <View style={styles.dateRow}>
             <TouchableOpacity style={[styles.dateChip, dateMode === 'today' && styles.dateChipActive]} onPress={() => setDate(new Date())}>
-              <Text style={[styles.dateText, dateMode === 'today' && styles.dateTextActive]}>Hoy</Text>
+              <Text style={[styles.dateText, dateMode === 'today' && styles.dateTextActive]}>{t('today')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.dateChip, dateMode === 'yesterday' && styles.dateChipActive]} onPress={() => setDate(yesterday)}>
-              <Text style={[styles.dateText, dateMode === 'yesterday' && styles.dateTextActive]}>Ayer</Text>
+              <Text style={[styles.dateText, dateMode === 'yesterday' && styles.dateTextActive]}>{t('yesterday')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.dateChip, dateMode === 'other' && styles.dateChipActive]} onPress={() => setShowDate(true)}>
               <Ionicons name="calendar-outline" size={17} color={dateMode === 'other' ? '#FFFFFF' : '#4B5563'} />
               <Text style={[styles.dateText, dateMode === 'other' && styles.dateTextActive]}>
-                {dateMode === 'other' ? formatDate(date) : 'Otro día'}
+                {dateMode === 'other' ? formatDate(date, locale) : t('anotherDay')}
               </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.infoCard}>
             <Ionicons name="wallet-outline" size={22} color="#047857" />
-            <Text style={styles.infoText}>Este ingreso contará para el balance y el ahorro del mes.</Text>
+            <Text style={styles.infoText}>{t('incomeInfo')}</Text>
           </View>
 
           <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} disabled={saving} onPress={() => void save()}>
-            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Guardar ingreso</Text>}
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>{t('saveIncome')}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -188,7 +196,7 @@ export default function AddIncomeScreen({
       <CurrencyPickerModal
         visible={showCurrency}
         selected={currency}
-        title="Divisa del ingreso"
+        title={t('incomeCurrency')}
         onSelect={setCurrency}
         onClose={() => setShowCurrency(false)}
       />

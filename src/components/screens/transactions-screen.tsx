@@ -34,11 +34,11 @@ import { useAppStyles } from '../../lib/themed-styles';
 
 type QuickPeriod = 'all' | 'today' | 'week' | 'month';
 
-const periodOptions: { label: string; value: QuickPeriod }[] = [
-  { label: 'Todos', value: 'all' },
-  { label: 'Hoy', value: 'today' },
-  { label: 'Esta semana', value: 'week' },
-  { label: 'Este mes', value: 'month' },
+const periodOptions: { labelKey: 'all' | 'today' | 'thisWeek' | 'thisMonth'; value: QuickPeriod }[] = [
+  { labelKey: 'all', value: 'all' },
+  { labelKey: 'today', value: 'today' },
+  { labelKey: 'thisWeek', value: 'week' },
+  { labelKey: 'thisMonth', value: 'month' },
 ];
 
 function startOfDay(date: Date) {
@@ -84,8 +84,8 @@ function getPeriodRange(period: QuickPeriod, monthAnchor: Date) {
   return null;
 }
 
-function formatShortDate(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', {
+function formatShortDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     year:
@@ -95,22 +95,22 @@ function formatShortDate(date: Date) {
   }).format(date);
 }
 
-function formatMonth(date: Date) {
-  const label = new Intl.DateTimeFormat('es-ES', {
+function formatMonth(date: Date, locale: string) {
+  const label = new Intl.DateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
   }).format(date);
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function sectionTitle(date: Date) {
+function sectionTitle(date: Date, locale: string, todayLabel: string, yesterdayLabel: string) {
   const today = startOfDay(new Date());
   const yesterday = addDays(today, -1);
 
-  if (date.getTime() === today.getTime()) return 'Hoy';
-  if (date.getTime() === yesterday.getTime()) return 'Ayer';
+  if (date.getTime() === today.getTime()) return todayLabel;
+  if (date.getTime() === yesterday.getTime()) return yesterdayLabel;
 
-  return new Intl.DateTimeFormat('es-ES', {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -121,7 +121,7 @@ function normalizeSearch(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('es-ES')
+    .toLocaleLowerCase()
     .trim();
 }
 
@@ -131,14 +131,14 @@ function parseAmount(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function sourceLabel(source: Expense['source']) {
-  const labels: Record<Expense['source'], string> = {
-    manual: 'Manual',
-    text: 'Texto',
-    voice: 'Voz',
-    recurring: 'Recurrente',
+function sourceLabel(source: Expense['source'], t: ReturnType<typeof useAppSettings>['t']) {
+  const labels: Record<Expense['source'], 'manualSource' | 'textSource' | 'voiceSource' | 'recurring'> = {
+    manual: 'manualSource',
+    text: 'textSource',
+    voice: 'voiceSource',
+    recurring: 'recurring',
   };
-  return labels[source];
+  return t(labels[source]);
 }
 
 export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -150,6 +150,8 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
     convertAmount,
     displayCurrency,
     formatMoney,
+    locale,
+    t,
   } = useAppSettings();
   const { getCategoryById } = useCategories();
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -287,7 +289,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
           ]
         : [];
       return planned.length > 0
-        ? [{ title: 'Próximos', data: planned }, ...regular]
+        ? [{ title: t('upcoming'), data: planned }, ...regular]
         : regular;
     }
 
@@ -298,13 +300,13 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
     });
 
     const dated = Array.from(grouped.entries()).map(([key, data]) => ({
-      title: sectionTitle(new Date(key)),
+      title: sectionTitle(new Date(key), locale, t('today'), t('yesterday')),
       data,
     }));
     return planned.length > 0
-      ? [{ title: 'Próximos', data: planned }, ...dated]
+      ? [{ title: t('upcoming'), data: planned }, ...dated]
       : dated;
-  }, [filteredExpenses, filters.sort]);
+  }, [filteredExpenses, filters.sort, locale, t]);
 
   const resultTotal = filteredExpenses.reduce(
     (sum, expense) =>
@@ -351,13 +353,13 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
           nextRunDate: advanceRecurringDate(expense.transactionDate, rule.frequency),
           active: rule.active,
         });
-        showFeedback('Gasto omitido. La siguiente repetición sigue programada.');
+        showFeedback(t('recurrenceSkipped'));
       } else {
         await deleteExpense(expense.id);
-        showFeedback('Gasto eliminado');
+        showFeedback(t('expenseDeleted'));
       }
     } catch (error) {
-      showFeedback('No se pudo eliminar el gasto.', 'error');
+      showFeedback(t('movementCompleteError'), 'error');
       throw error;
     }
   }
@@ -378,13 +380,13 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
           nextRunDate: advanceRecurringDate(income.transactionDate, rule.frequency),
           active: rule.active,
         });
-        showFeedback('Ingreso omitido. La siguiente repetición sigue programada.');
+        showFeedback(t('recurrenceSkipped'));
       } else {
         await deleteIncome(income.id);
-        showFeedback('Ingreso eliminado');
+        showFeedback(t('incomeDeleted'));
       }
     } catch (error) {
-      showFeedback('No se pudo eliminar el ingreso.', 'error');
+      showFeedback(t('movementCompleteError'), 'error');
       throw error;
     }
   }
@@ -393,9 +395,9 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Movimientos</Text>
+          <Text style={styles.title}>{t('transactions')}</Text>
           <Text style={styles.subtitle}>
-            Consulta y edita tus gastos e ingresos.
+            {t('transactionsSubtitle')}
           </Text>
         </View>
         <SettingsButton onPress={onOpenSettings} />
@@ -407,7 +409,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
           onPress={() => setMovementKind('expense')}
         >
           <Ionicons name="arrow-up" size={17} color={movementKind === 'expense' ? '#FFFFFF' : '#4F46E5'} />
-          <Text style={[styles.kindOptionText, movementKind === 'expense' && styles.kindOptionTextActive]}>Gastos</Text>
+          <Text style={[styles.kindOptionText, movementKind === 'expense' && styles.kindOptionTextActive]}>{t('expenses')}</Text>
           <View style={[styles.kindCount, movementKind === 'expense' && styles.kindCountActive]}><Text style={[styles.kindCountText, movementKind === 'expense' && styles.kindCountTextActive]}>{expenses.length}</Text></View>
         </TouchableOpacity>
         <TouchableOpacity
@@ -415,7 +417,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
           onPress={() => setMovementKind('income')}
         >
           <Ionicons name="arrow-down" size={17} color={movementKind === 'income' ? '#FFFFFF' : '#059669'} />
-          <Text style={[styles.kindOptionText, movementKind === 'income' && styles.kindOptionTextActive]}>Ingresos</Text>
+          <Text style={[styles.kindOptionText, movementKind === 'income' && styles.kindOptionTextActive]}>{t('incomes')}</Text>
           <View style={[styles.kindCount, movementKind === 'income' && styles.kindCountActive]}><Text style={[styles.kindCountText, movementKind === 'income' && styles.kindCountTextActive]}>{incomes.length}</Text></View>
         </TouchableOpacity>
       </View>
@@ -438,7 +440,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                 style={styles.searchInput}
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Descripción, categoría o importe"
+                placeholder={t('searchMovements')}
                 placeholderTextColor="#9CA3AF"
                 returnKeyType="search"
                 autoCorrect={false}
@@ -472,7 +474,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                         selected && styles.periodChipTextSelected,
                       ]}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -493,10 +495,10 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                 </View>
                 <View style={styles.plannedToggleText}>
                   <Text style={[styles.plannedToggleTitle, showPlanned && styles.plannedToggleTitleActive]}>
-                    {showPlanned ? 'Ocultar próximos gastos' : `Ver próximos gastos (${plannedCount})`}
+                    {showPlanned ? t('hideUpcomingExpenses') : `${t('viewUpcomingExpenses')} (${plannedCount})`}
                   </Text>
                   <Text style={[styles.plannedToggleHint, showPlanned && styles.plannedToggleHintActive]}>
-                    {showPlanned ? 'La sección Próximos está visible' : 'Pagos previstos y recurrentes'}
+                    {showPlanned ? t('upcomingVisible') : t('plannedAndRecurring')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={19} color={showPlanned ? '#FFFFFF' : '#4F46E5'} />
@@ -517,7 +519,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                 >
                   <Ionicons name="calendar-outline" size={17} color="#4F46E5" />
                   <Text style={styles.monthLabel}>
-                    {formatMonth(monthAnchor)}
+                    {formatMonth(monthAnchor, locale)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -536,7 +538,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                   {filteredExpenses.length === 1 ? 'gasto' : 'gastos'}
                 </Text>
                 <Text style={styles.resultTotal}>
-                  {formatMoney(resultTotal, displayCurrency)} en total
+                  {formatMoney(resultTotal, displayCurrency)} {t('total')}
                 </Text>
               </View>
 
@@ -558,7 +560,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                     activeFilterCount > 0 && styles.filterButtonTextActive,
                   ]}
                 >
-                  Filtros
+                  {t('filters')}
                 </Text>
                 {activeFilterCount > 0 && (
                   <View style={styles.filterBadge}>
@@ -581,17 +583,17 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
               />
             </View>
             <Text style={styles.emptyTitle}>
-              {expenses.length === 0 ? 'Aún no hay gastos' : 'No hay resultados'}
+              {expenses.length === 0 ? t('noExpenses') : t('noResults')}
             </Text>
             <Text style={styles.emptyText}>
               {expenses.length === 0
-                ? 'Los gastos que añadas aparecerán aquí.'
-                : 'Prueba con otra búsqueda o quita algún filtro.'}
+                ? t('noExpensesHint')
+                : t('noResultsHint')}
             </Text>
             {hasActiveQuery && expenses.length > 0 && (
               <TouchableOpacity style={styles.clearButton} onPress={clearAll}>
                 <Text style={styles.clearButtonText}>
-                  Limpiar búsqueda y filtros
+                  {t('clearSearchFilters')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -603,7 +605,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
         renderItem={({ item }) => {
           const category = getCategoryById(item.categoryId);
           return (
-            <SwipeToDelete label="Eliminar gasto" onDelete={() => removeExpense(item)}>
+            <SwipeToDelete label={t('deleteExpense')} onDelete={() => removeExpense(item)}>
             <TouchableOpacity
               activeOpacity={0.75}
               style={[
@@ -630,7 +632,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
               </View>
               <View style={styles.cardText}>
                 <Text style={styles.description} numberOfLines={1}>
-                  {item.description || category?.name || 'Gasto'}
+                  {item.description || category?.name || t('expense')}
                 </Text>
                 <Text style={styles.cardMeta} numberOfLines={1}>
                   <Text
@@ -639,13 +641,13 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                       fontWeight: '600',
                     }}
                   >
-                    {category?.name ?? 'Sin categoría'}
+                    {category?.name ?? t('uncategorized')}
                   </Text>
                   {' · '}
-                  {formatShortDate(item.transactionDate)}
-                  {item.status === 'planned' ? ' · Previsto' : ''}
+                  {formatShortDate(item.transactionDate, locale)}
+                  {item.status === 'planned' ? ` · ${t('planned')}` : ''}
                   {item.source !== 'manual'
-                    ? ` · ${sourceLabel(item.source)}`
+                    ? ` · ${sourceLabel(item.source, t)}`
                     : ''}
                 </Text>
               </View>
@@ -655,7 +657,7 @@ export default function TransactionsScreen({ onOpenSettings }: { onOpenSettings:
                 </Text>
                 {item.currency !== displayCurrency && (
                   <Text style={styles.originalAmount}>
-                    {formatCurrencyAmount(item.amount, item.currency)}
+                    {formatCurrencyAmount(item.amount, item.currency, locale)}
                   </Text>
                 )}
               </View>
@@ -703,7 +705,7 @@ function IncomeMovements({ incomes, onEdit, onDelete }: {
   onDelete: (income: Income) => Promise<void>;
 }) {
   const styles = useAppStyles(lightStyles);
-  const { convertAmount, displayCurrency, formatMoney } = useAppSettings();
+  const { convertAmount, displayCurrency, formatMoney, locale, t } = useAppSettings();
   const [search, setSearch] = useState('');
   const [quickPeriod, setQuickPeriod] = useState<QuickPeriod>('all');
   const [monthAnchor, setMonthAnchor] = useState(startOfDay(new Date()));
@@ -735,10 +737,10 @@ function IncomeMovements({ incomes, onEdit, onDelete }: {
       grouped.set(key, [...(grouped.get(key) ?? []), income]);
     });
     const completed = Array.from(grouped.entries()).map(([key, data]) => ({
-      title: sectionTitle(new Date(key)), data,
+      title: sectionTitle(new Date(key), locale, t('today'), t('yesterday')), data,
     }));
-    return planned.length > 0 ? [{ title: 'Próximos', data: planned }, ...completed] : completed;
-  }, [filtered]);
+    return planned.length > 0 ? [{ title: t('upcoming'), data: planned }, ...completed] : completed;
+  }, [filtered, locale, t]);
 
   const total = filtered.reduce((sum, income) => sum + convertAmount(income.amount, income.currency), 0);
 
@@ -753,28 +755,28 @@ function IncomeMovements({ incomes, onEdit, onDelete }: {
       ListHeaderComponent={<View>
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={20} color="#9CA3AF" />
-          <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Concepto o importe" placeholderTextColor="#9CA3AF" returnKeyType="search" />
+          <TextInput style={styles.searchInput} value={search} onChangeText={setSearch} placeholder={t('searchMovements')} placeholderTextColor="#9CA3AF" returnKeyType="search" />
           {search.length > 0 && <TouchableOpacity onPress={() => setSearch('')}><Ionicons name="close-circle" size={20} color="#9CA3AF" /></TouchableOpacity>}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periodRow}>
           {periodOptions.map((option) => {
             const selected = quickPeriod === option.value;
-            return <TouchableOpacity key={option.value} style={[styles.periodChip, selected && styles.incomePeriodSelected]} onPress={() => { setQuickPeriod(option.value); if (option.value === 'month') setMonthAnchor(startOfDay(new Date())); }}><Text style={[styles.periodChipText, selected && styles.periodChipTextSelected]}>{option.label}</Text></TouchableOpacity>;
+            return <TouchableOpacity key={option.value} style={[styles.periodChip, selected && styles.incomePeriodSelected]} onPress={() => { setQuickPeriod(option.value); if (option.value === 'month') setMonthAnchor(startOfDay(new Date())); }}><Text style={[styles.periodChipText, selected && styles.periodChipTextSelected]}>{t(option.labelKey)}</Text></TouchableOpacity>;
           })}
         </ScrollView>
         {quickPeriod === 'month' && <View style={[styles.monthNavigator, styles.incomeMonthNavigator]}>
           <TouchableOpacity style={styles.monthArrow} onPress={() => setMonthAnchor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><Ionicons name="chevron-back" size={21} color="#047857" /></TouchableOpacity>
-          <TouchableOpacity style={styles.monthLabelButton} onPress={() => setShowMonthPicker(true)}><Ionicons name="calendar-outline" size={17} color="#047857" /><Text style={[styles.monthLabel, styles.incomeMonthLabel]}>{formatMonth(monthAnchor)}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.monthLabelButton} onPress={() => setShowMonthPicker(true)}><Ionicons name="calendar-outline" size={17} color="#047857" /><Text style={[styles.monthLabel, styles.incomeMonthLabel]}>{formatMonth(monthAnchor, locale)}</Text></TouchableOpacity>
           <TouchableOpacity style={styles.monthArrow} onPress={() => setMonthAnchor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><Ionicons name="chevron-forward" size={21} color="#047857" /></TouchableOpacity>
         </View>}
-        <View style={styles.resultsBar}><View><Text style={styles.resultCount}>{filtered.length} {filtered.length === 1 ? 'ingreso' : 'ingresos'}</Text><Text style={styles.resultTotal}>{formatMoney(total, displayCurrency)} en total</Text></View></View>
+        <View style={styles.resultsBar}><View><Text style={styles.resultCount}>{filtered.length} {t('incomes').toLocaleLowerCase(locale)}</Text><Text style={styles.resultTotal}>{formatMoney(total, displayCurrency)} {t('total')}</Text></View></View>
       </View>}
-      ListEmptyComponent={<View style={styles.emptyState}><View style={[styles.emptyIcon, styles.incomeEmptyIcon]}><Ionicons name={incomes.length === 0 ? 'wallet-outline' : 'search-outline'} size={30} color="#059669" /></View><Text style={styles.emptyTitle}>{incomes.length === 0 ? 'Aún no hay ingresos' : 'No hay resultados'}</Text><Text style={styles.emptyText}>{incomes.length === 0 ? 'Los ingresos que añadas aparecerán aquí.' : 'Prueba con otra búsqueda o periodo.'}</Text></View>}
+      ListEmptyComponent={<View style={styles.emptyState}><View style={[styles.emptyIcon, styles.incomeEmptyIcon]}><Ionicons name={incomes.length === 0 ? 'wallet-outline' : 'search-outline'} size={30} color="#059669" /></View><Text style={styles.emptyTitle}>{incomes.length === 0 ? t('incomes') : t('noResults')}</Text><Text style={styles.emptyText}>{incomes.length === 0 ? t('incomeInfo') : t('noResultsHint')}</Text></View>}
       renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
-      renderItem={({ item }) => <SwipeToDelete label="Eliminar ingreso" onDelete={() => onDelete(item)}><TouchableOpacity activeOpacity={0.75} style={[styles.card, styles.swipeCard, item.status === 'planned' && styles.incomePlanned]} onPress={() => onEdit(item)}>
+      renderItem={({ item }) => <SwipeToDelete label={t('deleteIncome')} onDelete={() => onDelete(item)}><TouchableOpacity activeOpacity={0.75} style={[styles.card, styles.swipeCard, item.status === 'planned' && styles.incomePlanned]} onPress={() => onEdit(item)}>
         <View style={[styles.transactionIcon, styles.incomeIcon]}><Ionicons name="arrow-down" size={21} color="#059669" /></View>
-        <View style={styles.cardText}><Text style={styles.description} numberOfLines={1}>{item.description || 'Ingreso'}</Text><Text style={styles.cardMeta}>{formatShortDate(item.transactionDate)}{item.status === 'planned' ? ' · Previsto' : ''}{item.source === 'recurring' ? ' · Recurrente' : ''}</Text></View>
-        <View style={styles.amountGroup}><Text style={[styles.amount, styles.incomeAmount]}>+{formatMoney(item.amount, item.currency)}</Text>{item.currency !== displayCurrency && <Text style={styles.originalAmount}>{formatCurrencyAmount(item.amount, item.currency)}</Text>}</View>
+        <View style={styles.cardText}><Text style={styles.description} numberOfLines={1}>{item.description || t('income')}</Text><Text style={styles.cardMeta}>{formatShortDate(item.transactionDate, locale)}{item.status === 'planned' ? ` · ${t('planned')}` : ''}{item.source === 'recurring' ? ` · ${t('recurring')}` : ''}</Text></View>
+        <View style={styles.amountGroup}><Text style={[styles.amount, styles.incomeAmount]}>+{formatMoney(item.amount, item.currency)}</Text>{item.currency !== displayCurrency && <Text style={styles.originalAmount}>{formatCurrencyAmount(item.amount, item.currency, locale)}</Text>}</View>
       </TouchableOpacity></SwipeToDelete>}
       ListFooterComponent={showMonthPicker ? <DateTimePicker value={monthAnchor} mode="date" presentation="dialog" onValueChange={(_event, value) => { setMonthAnchor(new Date(value.getFullYear(), value.getMonth(), 1)); setShowMonthPicker(false); }} onDismiss={() => setShowMonthPicker(false)} /> : null}
     />

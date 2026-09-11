@@ -7,7 +7,7 @@ import Svg, {
   Circle,
 } from 'react-native-svg';
 
-import { CurrencyCode } from '../context/app-settings-context';
+import { CurrencyCode, useAppSettings } from '../context/app-settings-context';
 import { useAppStyles } from '../lib/themed-styles';
 
 type DonutItem = {
@@ -35,6 +35,7 @@ export default function ExpenseDonut({
   currency,
 }: Props) {
   const styles = useAppStyles(lightStyles);
+  const { locale, t } = useAppSettings();
   let cumulative = 0;
 
   return (
@@ -119,7 +120,7 @@ export default function ExpenseDonut({
           style={styles.total}
         >
           {new Intl.NumberFormat(
-            'es-ES',
+            locale,
             {
               style:
                 'currency',
@@ -131,7 +132,7 @@ export default function ExpenseDonut({
         <Text
           style={styles.label}
         >
-          gastado
+          {t('spent')}
         </Text>
       </View>
     </View>

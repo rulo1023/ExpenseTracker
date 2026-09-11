@@ -3,7 +3,7 @@
     "name": "ExpenseTracker",
     "slug": "ExpenseTracker",
     "version": "1.1.0",
-    "icon": "./assets/images/expense-tracker-icon.png",
+    "icon": "./assets/images/expense-tracker-app-icon.png",
     "orientation": "portrait",
     "scheme": "expensetracker",
     "userInterfaceStyle": "automatic",
@@ -38,7 +38,7 @@
     "android": {
       "package": "com.rulo1023.ExpenseTracker",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/expense-tracker-icon.png",
+        "foregroundImage": "./assets/images/expense-tracker-app-icon.png",
         "backgroundColor": "#4F46E5"
       }
     }

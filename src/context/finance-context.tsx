@@ -4,8 +4,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 
 import { CurrencyCode, useAppSettings } from './app-settings-context';
 import { useAuth } from './auth-context';
@@ -66,11 +68,17 @@ type FinanceContextValue = {
   updateIncome: (id: string, input: IncomeInput) => Promise<void>;
   deleteIncome: (id: string) => Promise<void>;
   saveBudget: (input: BudgetInput) => Promise<void>;
+  updateBudget: (id: string, input: BudgetInput) => Promise<void>;
   deleteBudget: (id: string) => Promise<void>;
   addRecurring: (input: RecurringInput) => Promise<void>;
   updateRecurring: (id: string, input: RecurringInput) => Promise<void>;
   toggleRecurring: (id: string, active: boolean) => Promise<void>;
   deleteRecurring: (id: string) => Promise<void>;
+  completePlannedMovement: (
+    kind: RecurringKind,
+    id: string,
+    recurringId?: string | null
+  ) => Promise<void>;
   refreshFinance: () => Promise<void>;
 };
 
@@ -125,19 +133,27 @@ function isMissingPlanningSchema(error: any) {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
 
+function isStaleRecurringReference(error: any) {
+  return (
+    error?.code === '23503' &&
+    String(error?.message ?? '').includes('recurring_id')
+  );
+}
+
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { inputCurrency, refreshRates } = useAppSettings();
+  const { hydrated: settingsHydrated, inputCurrency, plannedExecutionMode, refreshRates } = useAppSettings();
   const { refreshExpenses } = useExpenses();
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [setupRequired, setSetupRequired] = useState(false);
+  const refreshRunningRef = useRef(false);
 
   const generateDueOccurrences = useCallback(
     async (rules: RecurringTransaction[]) => {
-      if (!user) return;
+      if (!user || !settingsHydrated) return false;
       const today = new Date();
       today.setHours(23, 59, 59, 999);
       const horizon = new Date();
@@ -170,6 +186,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             }
             continue;
           }
+          if (plannedExecutionMode === 'manual') {
+            continue;
+          }
           const { error: completeError } = await supabase
             .from(targetTable)
             .update({ status: 'completed' })
@@ -185,6 +204,50 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           while (occurrenceDate.getTime() <= today.getTime()) {
             occurrenceDate = advanceRecurringDate(occurrenceDate, rule.frequency);
           }
+
+          const { error: advanceError } = await supabase
+            .from('recurring_transactions')
+            .update({ next_run_date: dateOnly(occurrenceDate) })
+            .eq('id', rule.id)
+            .eq('user_id', user.id);
+          if (advanceError) throw advanceError;
+        } else if (
+          plannedExecutionMode === 'automatic' &&
+          occurrenceDate.getTime() <= today.getTime()
+        ) {
+          const completed = {
+            user_id: user.id,
+            description: rule.description.trim(),
+            amount: rule.amount,
+            currency: rule.currency,
+            transaction_date: occurrenceDate.toISOString(),
+            status: 'completed',
+            source: 'recurring',
+            recurring_id: rule.id,
+          };
+          if (rule.kind === 'expense' && rule.categoryId) {
+            const { error } = await supabase
+              .from('expenses')
+              .insert({ ...completed, category_id: rule.categoryId });
+            if (error) {
+              if (isStaleRecurringReference(error)) continue;
+              if (error.code !== '23505') throw error;
+            } else {
+              expensesChanged = true;
+            }
+          } else if (rule.kind === 'income') {
+            const { error } = await supabase.from('incomes').insert(completed);
+            if (error) {
+              if (isStaleRecurringReference(error)) continue;
+              if (error.code !== '23505') throw error;
+            } else {
+              incomesChanged = true;
+            }
+          }
+
+          do {
+            occurrenceDate = advanceRecurringDate(occurrenceDate, rule.frequency);
+          } while (occurrenceDate.getTime() <= today.getTime());
 
           const { error: advanceError } = await supabase
             .from('recurring_transactions')
@@ -211,22 +274,55 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           const { error } = await supabase
             .from('expenses')
             .insert({ ...common, category_id: rule.categoryId });
-          if (error && error.code !== '23505') throw error;
-          expensesChanged = true;
+          if (error) {
+            if (isStaleRecurringReference(error)) continue;
+            if (error.code !== '23505') throw error;
+          } else {
+            expensesChanged = true;
+          }
         }
 
         if (rule.kind === 'income') {
           const { error } = await supabase.from('incomes').insert(common);
-          if (error && error.code !== '23505') throw error;
-          incomesChanged = true;
+          if (error) {
+            if (isStaleRecurringReference(error)) continue;
+            if (error.code !== '23505') throw error;
+          } else {
+            incomesChanged = true;
+          }
         }
       }
 
       if (expensesChanged) await refreshExpenses();
       return incomesChanged;
     },
-    [refreshExpenses, user]
+    [plannedExecutionMode, refreshExpenses, settingsHydrated, user]
   );
+
+  const completeDueStandaloneMovements = useCallback(async () => {
+    if (!user || !settingsHydrated || plannedExecutionMode !== 'automatic') return;
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    const [expenseResult, incomeResult] = await Promise.all([
+      supabase
+        .from('expenses')
+        .update({ status: 'completed' })
+        .eq('user_id', user.id)
+        .eq('status', 'planned')
+        .is('recurring_id', null)
+        .lte('transaction_date', endOfToday.toISOString()),
+      supabase
+        .from('incomes')
+        .update({ status: 'completed' })
+        .eq('user_id', user.id)
+        .eq('status', 'planned')
+        .is('recurring_id', null)
+        .lte('transaction_date', endOfToday.toISOString()),
+    ]);
+    if (expenseResult.error) throw expenseResult.error;
+    if (incomeResult.error) throw incomeResult.error;
+    await refreshExpenses();
+  }, [plannedExecutionMode, refreshExpenses, settingsHydrated, user]);
 
   const refreshFinance = useCallback(async () => {
     if (!user) {
@@ -236,8 +332,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (refreshRunningRef.current) return;
+    refreshRunningRef.current = true;
+
     try {
       setLoading(true);
+      await completeDueStandaloneMovements();
       const [incomeResult, budgetResult, recurringResult] = await Promise.all([
         supabase.from('incomes').select('*').eq('user_id', user.id).order('transaction_date', { ascending: false }),
         supabase.from('budgets').select('*').eq('user_id', user.id).order('month_start', { ascending: false }),
@@ -268,12 +368,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading planning data:', error);
     } finally {
+      refreshRunningRef.current = false;
       setLoading(false);
     }
-  }, [generateDueOccurrences, user]);
+  }, [completeDueStandaloneMovements, generateDueOccurrences, user]);
 
   useEffect(() => {
     void refreshFinance();
+  }, [refreshFinance]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshFinance();
+    });
+    return () => subscription.remove();
   }, [refreshFinance]);
 
   useEffect(() => {
@@ -339,6 +447,23 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
     const mapped = mapBudget(data);
     setBudgets((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)]);
+  }
+
+  async function updateBudget(id: string, input: BudgetInput) {
+    if (!user) throw new Error('User is not authenticated');
+    const { data, error } = await supabase.from('budgets').update({
+      user_id: user.id,
+      category_id: input.categoryId,
+      amount: input.amount,
+      currency: input.currency,
+      month_start: dateOnly(input.monthStart),
+    }).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    const mapped = mapBudget(data);
+    setBudgets((current) => [
+      mapped,
+      ...current.filter((item) => item.id !== id),
+    ].sort((a, b) => b.monthStart.getTime() - a.monthStart.getTime()));
   }
 
   async function deleteBudget(id: string) {
@@ -424,10 +549,52 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     await refreshExpenses();
   }
 
+  async function completePlannedMovement(
+    kind: RecurringKind,
+    id: string,
+    recurringId?: string | null
+  ) {
+    if (!user) throw new Error('User is not authenticated');
+    const table = kind === 'expense' ? 'expenses' : 'incomes';
+    const { data: completedRow, error } = await supabase
+      .from(table)
+      .update({ status: 'completed' })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select('transaction_date')
+      .single();
+    if (error) throw error;
+
+    if (recurringId) {
+      const rule = recurring.find((item) => item.id === recurringId);
+      if (rule) {
+        const completedDate = completedRow?.transaction_date
+          ? new Date(completedRow.transaction_date)
+          : rule.nextRunDate;
+        let nextDate = advanceRecurringDate(completedDate, rule.frequency);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        while (nextDate.getTime() <= today.getTime()) {
+          nextDate = advanceRecurringDate(nextDate, rule.frequency);
+        }
+        const { error: advanceError } = await supabase
+          .from('recurring_transactions')
+          .update({ next_run_date: dateOnly(nextDate) })
+          .eq('id', recurringId)
+          .eq('user_id', user.id);
+        if (advanceError) throw advanceError;
+      }
+    }
+
+    await refreshExpenses();
+    await refreshFinance();
+  }
+
   const value = useMemo(() => ({
     incomes, budgets, recurring, loading, setupRequired,
-    addIncome, updateIncome, deleteIncome, saveBudget, deleteBudget,
-    addRecurring, updateRecurring, toggleRecurring, deleteRecurring, refreshFinance,
+    addIncome, updateIncome, deleteIncome, saveBudget, updateBudget, deleteBudget,
+    addRecurring, updateRecurring, toggleRecurring, deleteRecurring,
+    completePlannedMovement, refreshFinance,
   }), [incomes, budgets, recurring, loading, setupRequired, refreshFinance]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

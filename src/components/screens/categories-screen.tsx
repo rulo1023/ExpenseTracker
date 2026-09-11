@@ -20,6 +20,7 @@ import {
   Category,
   useCategories,
 } from '../../context/categories-context';
+import { useAppSettings } from '../../context/app-settings-context';
 import { useAppStyles } from '../../lib/themed-styles';
 
 const COLORS = [
@@ -176,6 +177,7 @@ const ICONS = [
 
 export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const styles = useAppStyles(lightStyles);
+  const { t } = useAppSettings();
   const {
     categories,
     addCategory,
@@ -209,25 +211,29 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
   const [search, setSearch] =
     useState('');
 
-  const normalizedSearch =
-    search
-      .trim()
-      .toLocaleLowerCase('es-ES');
+  const normalize = (value: string) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLocaleLowerCase();
+
+  const normalizedSearch = normalize(search);
 
   const filteredCategories =
-    categories.filter((category) => {
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      const searchableText =
-        `${category.name} ${category.description}`
-          .toLocaleLowerCase('es-ES');
-
-      return searchableText.includes(
-        normalizedSearch
-      );
-    });
+    categories
+      .map((category, index) => {
+        const nameValue = normalize(category.name);
+        const descriptionValue = normalize(category.description);
+        const score = !normalizedSearch ? 0
+          : nameValue === normalizedSearch ? 0
+            : nameValue.startsWith(normalizedSearch) ? 1
+              : nameValue.includes(normalizedSearch) ? 2
+                : descriptionValue.includes(normalizedSearch) ? 3 : 99;
+        return { category, index, score };
+      })
+      .filter((item) => item.score < 99)
+      .sort((a, b) => a.score - b.score || a.index - b.index)
+      .map((item) => item.category);
 
   function openNew() {
     setEditing(null);
@@ -349,13 +355,13 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>
-            Categorías
+            {t('categories')}
           </Text>
 
           <Text
             style={styles.subtitle}
           >
-            Personaliza cómo organizas tu dinero.
+            {t('categoriesSubtitle')}
           </Text>
         </View>
 
@@ -485,7 +491,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
                       styles.cancelText
                     }
                   >
-                    Cancelar
+                    {t('cancel')}
                   </Text>
                 </TouchableOpacity>
 
@@ -495,8 +501,8 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
                   }
                 >
                   {editing
-                    ? 'Editar categoría'
-                    : 'Nueva categoría'}
+                    ? t('editCategory')
+                    : t('newCategory')}
                 </Text>
 
                 <View
@@ -536,7 +542,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
               </View>
 
               <Text style={styles.label}>
-                Nombre
+                {t('name')}
               </Text>
 
               <TextInput
@@ -548,7 +554,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
               />
 
               <Text style={styles.label}>
-                Descripción
+                {t('description')}
               </Text>
 
               <TextInput
@@ -564,7 +570,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
               />
 
               <Text style={styles.label}>
-                Icono
+                {t('icon')}
               </Text>
 
               <View
@@ -611,7 +617,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
               </View>
 
               <Text style={styles.label}>
-                Color
+                {t('color')}
               </Text>
 
               <View
@@ -665,8 +671,8 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
                   }
                 >
                   {saving
-                    ? 'Guardando...'
-                    : 'Guardar cambios'}
+                    ? t('saving')
+                    : t('saveChanges')}
                 </Text>
               </TouchableOpacity>
 
@@ -684,7 +690,7 @@ export default function CategoriesScreen({ onOpenSettings }: { onOpenSettings: (
                       styles.deleteText
                     }
                   >
-                    Eliminar categoría
+                    {t('deleteCategory')}
                   </Text>
                 </TouchableOpacity>
               )}

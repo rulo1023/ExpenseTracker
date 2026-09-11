@@ -18,6 +18,7 @@ import CurrencyPickerModal from './currency-picker-modal';
 import {
   CurrencyCode,
   currencyInfo,
+  useAppSettings,
 } from '../context/app-settings-context';
 import { useCategories } from '../context/categories-context';
 import {
@@ -25,6 +26,7 @@ import {
   useExpenses,
 } from '../context/expenses-context';
 import { useFeedback } from '../context/feedback-context';
+import { useFinance } from '../context/finance-context';
 import { useAppStyles } from '../lib/themed-styles';
 
 type ExpenseEditorModalProps = {
@@ -38,14 +40,6 @@ function startOfDay(date: Date) {
   return result;
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
-}
-
 export default function ExpenseEditorModal({
   expense,
   onClose,
@@ -55,6 +49,8 @@ export default function ExpenseEditorModal({
     useExpenses();
   const { getCategoryById } = useCategories();
   const { showFeedback } = useFeedback();
+  const { completePlannedMovement } = useFinance();
+  const { locale, plannedExecutionMode, t } = useAppSettings();
 
   const [description, setDescription] =
     useState('');
@@ -90,6 +86,10 @@ export default function ExpenseEditorModal({
 
   const selectedCategory =
     getCategoryById(categoryId);
+  const canComplete =
+    expense?.status === 'planned' &&
+    plannedExecutionMode === 'manual' &&
+    startOfDay(transactionDate).getTime() <= startOfDay(new Date()).getTime();
 
   async function saveExpense() {
     if (!expense || saving) {
@@ -106,7 +106,7 @@ export default function ExpenseEditorModal({
       parsedAmount <= 0
     ) {
       showFeedback(
-        'Revisa el importe y la categoría.',
+        t('invalidAmount'),
         'error'
       );
       return;
@@ -125,18 +125,36 @@ export default function ExpenseEditorModal({
         currency,
         categoryId,
         transactionDate,
-        status: future ? 'planned' : 'completed',
+        status:
+          future || (expense.status === 'planned' && plannedExecutionMode === 'manual')
+            ? 'planned'
+            : 'completed',
         source: expense.source,
       });
 
       onClose();
-      showFeedback('Gasto actualizado');
+      showFeedback(t('updatedExpense'));
     } catch (error) {
       console.error('Error updating expense:', error);
       showFeedback(
-        'No se pudo actualizar el gasto.',
+        t('expenseSaveError'),
         'error'
       );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function completeExpense() {
+    if (!expense || saving) return;
+    try {
+      setSaving(true);
+      await completePlannedMovement('expense', expense.id, expense.recurringId);
+      onClose();
+      showFeedback(t('movementCompleted'));
+    } catch (error) {
+      console.error('Error completing expense:', error);
+      showFeedback(t('movementCompleteError'), 'error');
     } finally {
       setSaving(false);
     }
@@ -148,26 +166,26 @@ export default function ExpenseEditorModal({
     }
 
     Alert.alert(
-      'Eliminar gasto',
-      'Esta acción no se puede deshacer.',
+      t('deleteExpense'),
+      t('deleteConfirm'),
       [
         {
-          text: 'Cancelar',
+          text: t('cancel'),
           style: 'cancel',
         },
         {
-          text: 'Eliminar',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               setSaving(true);
               await deleteExpense(expense.id);
               onClose();
-              showFeedback('Gasto eliminado');
+              showFeedback(t('expenseDeleted'));
             } catch (error) {
               console.error('Error deleting expense:', error);
               showFeedback(
-                'No se pudo eliminar el gasto.',
+                t('movementCompleteError'),
                 'error'
               );
             } finally {
@@ -195,11 +213,11 @@ export default function ExpenseEditorModal({
             <View style={styles.header}>
               <View>
                 <Text style={styles.title}>
-                  Editar gasto
+                  {t('editExpense')}
                 </Text>
 
                 <Text style={styles.subtitle}>
-                  Actualiza los datos que necesites.
+                  {t('editSubtitle')}
                 </Text>
               </View>
 
@@ -215,17 +233,17 @@ export default function ExpenseEditorModal({
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Concepto</Text>
+            <Text style={styles.label}>{t('concept')}</Text>
 
             <TextInput
               style={styles.input}
               value={description}
               onChangeText={setDescription}
-              placeholder="Descripción opcional"
+              placeholder={t('optionalDescription')}
               placeholderTextColor="#9CA3AF"
             />
 
-            <Text style={styles.label}>Importe</Text>
+            <Text style={styles.label}>{t('amount')}</Text>
 
             <View style={styles.amountInputContainer}>
               <TouchableOpacity
@@ -253,7 +271,7 @@ export default function ExpenseEditorModal({
               />
             </View>
 
-            <Text style={styles.label}>Fecha</Text>
+            <Text style={styles.label}>{t('date')}</Text>
 
             <TouchableOpacity
               style={styles.selectorRow}
@@ -268,7 +286,9 @@ export default function ExpenseEditorModal({
               </View>
 
               <Text style={styles.selectorText}>
-                {formatDate(transactionDate)}
+                {new Intl.DateTimeFormat(locale, {
+                  day: '2-digit', month: 'short', year: 'numeric',
+                }).format(transactionDate)}
               </Text>
 
               <Ionicons
@@ -291,7 +311,7 @@ export default function ExpenseEditorModal({
               />
             )}
 
-            <Text style={styles.label}>Categoría</Text>
+            <Text style={styles.label}>{t('category')}</Text>
 
             <TouchableOpacity
               style={styles.selectorRow}
@@ -322,7 +342,7 @@ export default function ExpenseEditorModal({
               <View style={styles.selectorContent}>
                 <Text style={styles.selectorText}>
                   {selectedCategory?.name ??
-                    'Seleccionar categoría'}
+                    t('chooseCategoryAction')}
                 </Text>
 
                 {selectedCategory && (
@@ -342,6 +362,17 @@ export default function ExpenseEditorModal({
               />
             </TouchableOpacity>
 
+            {canComplete && (
+              <TouchableOpacity
+                style={styles.completeButton}
+                disabled={saving}
+                onPress={() => void completeExpense()}
+              >
+                <Ionicons name="checkmark-circle-outline" size={20} color="#047857" />
+                <Text style={styles.completeText}>{t('markCompleted')}</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={[
                 styles.saveButton,
@@ -351,7 +382,7 @@ export default function ExpenseEditorModal({
               onPress={() => void saveExpense()}
             >
               <Text style={styles.saveText}>
-                {saving ? 'Guardando…' : 'Guardar cambios'}
+                {saving ? t('saving') : t('saveChanges')}
               </Text>
             </TouchableOpacity>
 
@@ -367,7 +398,7 @@ export default function ExpenseEditorModal({
               />
 
               <Text style={styles.deleteText}>
-                Eliminar gasto
+                {t('deleteExpense')}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -377,14 +408,14 @@ export default function ExpenseEditorModal({
       <CategoryPickerModal
         visible={categoryPickerVisible}
         selectedCategoryId={categoryId}
-        title="Cambiar categoría"
+        title={t('changeCategory')}
         onSelect={setCategoryId}
         onClose={() => setCategoryPickerVisible(false)}
       />
 
       <CurrencyPickerModal
         visible={currencyPickerVisible}
-        title="Divisa del gasto"
+        title={t('expenseCurrency')}
         selected={currency}
         onSelect={setCurrency}
         onClose={() => setCurrencyPickerVisible(false)}
@@ -535,6 +566,21 @@ const lightStyles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#111827',
   },
+
+  completeButton: {
+    marginTop: 18,
+    minHeight: 52,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    backgroundColor: '#ECFDF5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  completeText: { color: '#047857', fontSize: 14, fontWeight: '800' },
 
   saveText: {
     color: '#FFFFFF',

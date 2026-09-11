@@ -34,18 +34,18 @@ import {
 import { useAppStyles } from '../../lib/themed-styles';
 
 type HomeScreenProps = {
-  onAddExpense: () => void;
+  onAddExpense: (initialDate: Date) => void;
   onOpenSettings: () => void;
 };
 
 const periodOptions: {
-  label: string;
+  labelKey: 'day' | 'week' | 'month' | 'year';
   value: SummaryPeriod;
 }[] = [
-  { label: 'Día', value: 'day' },
-  { label: 'Semana', value: 'week' },
-  { label: 'Mes', value: 'month' },
-  { label: 'Año', value: 'year' },
+  { labelKey: 'day', value: 'day' },
+  { labelKey: 'week', value: 'week' },
+  { labelKey: 'month', value: 'month' },
+  { labelKey: 'year', value: 'year' },
 ];
 
 function startOfDay(date: Date) {
@@ -119,7 +119,8 @@ function getNaturalRange(
 
 function formatRange(
   start: Date,
-  endExclusive: Date
+  endExclusive: Date,
+  locale: string
 ) {
   const end =
     addDays(endExclusive, -1);
@@ -129,7 +130,7 @@ function formatRange(
     end.getTime()
   ) {
     return new Intl.DateTimeFormat(
-      'es-ES',
+      locale,
       {
         day: 'numeric',
         month: 'long',
@@ -139,13 +140,13 @@ function formatRange(
   }
 
   return `${new Intl.DateTimeFormat(
-    'es-ES',
+    locale,
     {
       day: 'numeric',
       month: 'short',
     }
   ).format(start)} – ${new Intl.DateTimeFormat(
-    'es-ES',
+    locale,
     {
       day: 'numeric',
       month: 'short',
@@ -170,6 +171,8 @@ export default function HomeScreen({
     displayCurrency,
     formatMoney,
     isDark,
+    locale,
+    t,
   } = useAppSettings();
 
   const {
@@ -186,6 +189,7 @@ export default function HomeScreen({
 
   const [anchorDate, setAnchorDate] =
     useState(new Date());
+  const [dayPickerVisible, setDayPickerVisible] = useState(false);
 
   const [
     customModalVisible,
@@ -405,7 +409,7 @@ export default function HomeScreen({
           <Text
             style={styles.title}
           >
-            Resumen
+            {t('summary')}
           </Text>
           <TouchableOpacity style={styles.settingsButton} onPress={onOpenSettings}>
             <Ionicons name="settings-outline" size={22} color={isDark ? '#F9FAFB' : '#374151'} />
@@ -452,7 +456,7 @@ export default function HomeScreen({
                   ]}
                 >
                   {
-                    option.label
+                    t(option.labelKey)
                   }
                 </Text>
               </TouchableOpacity>
@@ -480,7 +484,7 @@ export default function HomeScreen({
                   styles.periodTextActive,
               ]}
             >
-              Personalizado
+              {t('custom')}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -508,16 +512,19 @@ export default function HomeScreen({
             </TouchableOpacity>
           )}
 
-          <Text
-            style={
-              styles.rangeText
-            }
+          <TouchableOpacity
+            disabled={summaryPeriod !== 'day'}
+            onPress={() => setDayPickerVisible(true)}
+            accessibilityRole={summaryPeriod === 'day' ? 'button' : undefined}
           >
+          <Text style={styles.rangeText}>
             {formatRange(
               range.start,
-              range.end
+              range.end,
+              locale
             )}
           </Text>
+          </TouchableOpacity>
 
           {summaryPeriod !==
             'custom' && (
@@ -561,7 +568,7 @@ export default function HomeScreen({
               styles.periodTotalLabel
             }
           >
-            Total del periodo
+            {t('totalPeriod')}
           </Text>
         </View>
 
@@ -570,7 +577,7 @@ export default function HomeScreen({
             styles.sectionTitle
           }
         >
-          Categorías
+          {t('categories')}
         </Text>
 
         <View
@@ -670,17 +677,30 @@ export default function HomeScreen({
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={onAddExpense}
+          onPress={() => onAddExpense(range.start)}
         >
           <Text
             style={
               styles.addButtonText
             }
           >
-            ＋ Añadir gasto
+            ＋ {t('addExpense')}
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {dayPickerVisible && (
+        <DateTimePicker
+          value={anchorDate}
+          mode="date"
+          presentation="dialog"
+          onValueChange={(_event, value) => {
+            setAnchorDate(value);
+            setDayPickerVisible(false);
+          }}
+          onDismiss={() => setDayPickerVisible(false)}
+        />
+      )}
 
       <Modal
         visible={
@@ -707,11 +727,11 @@ export default function HomeScreen({
                 styles.modalTitle
               }
             >
-              Periodo personalizado
+              {t('customPeriod')}
             </Text>
 
             <Text style={styles.label}>
-              Desde
+              {t('from')}
             </Text>
 
             <TouchableOpacity
@@ -724,13 +744,13 @@ export default function HomeScreen({
             >
               <Text>
                 {customStart.toLocaleDateString(
-                  'es-ES'
+                  locale
                 )}
               </Text>
             </TouchableOpacity>
 
             <Text style={styles.label}>
-              Hasta
+              {t('to')}
             </Text>
 
             <TouchableOpacity
@@ -743,7 +763,7 @@ export default function HomeScreen({
             >
               <Text>
                 {customEnd.toLocaleDateString(
-                  'es-ES'
+                  locale
                 )}
               </Text>
             </TouchableOpacity>
@@ -827,7 +847,7 @@ export default function HomeScreen({
                   styles.saveButtonText
                 }
               >
-                Ver periodo
+                {t('apply')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -942,7 +962,7 @@ export default function HomeScreen({
                           }
                         >
                           {expense.transactionDate.toLocaleDateString(
-                            'es-ES'
+                  locale
                           )}
                         </Text>
                       </View>
@@ -958,7 +978,8 @@ export default function HomeScreen({
                           <Text style={styles.expenseOriginalAmount}>
                             {formatCurrencyAmount(
                               expense.amount,
-                              expense.currency
+                              expense.currency,
+                              locale
                             )}
                           </Text>
                         )}
@@ -978,7 +999,7 @@ export default function HomeScreen({
                   }
                 >
                   <Text>
-                    Cerrar
+                    {t('close')}
                   </Text>
                 </TouchableOpacity>
               </>

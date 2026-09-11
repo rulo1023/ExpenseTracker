@@ -1,5 +1,6 @@
 ﻿import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -170,6 +171,8 @@ export function ExpensesProvider({
     }
   }
 
+  const refreshExpenses = useCallback(loadExpenses, [user?.id]);
+
   async function addExpense({
     description,
     amount,
@@ -334,7 +337,7 @@ export function ExpensesProvider({
         addExpense,
         updateExpense,
         deleteExpense,
-        refreshExpenses: loadExpenses,
+        refreshExpenses,
         total,
       }}
     >

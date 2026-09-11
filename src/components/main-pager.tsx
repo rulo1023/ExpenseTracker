@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import PagerView from 'react-native-pager-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppStatusBanners from './app-status-banners';
 import AddExpenseScreen from './screens/add-expense-screen';
@@ -22,19 +23,22 @@ import { useAppStyles } from '../lib/themed-styles';
 
 export default function MainPager() {
   const styles = useAppStyles(lightStyles);
-  const { isDark } = useAppSettings();
+  const { isDark, t } = useAppSettings();
+  const insets = useSafeAreaInsets();
   const tabIconColor = isDark ? '#F9FAFB' : '#111827';
   const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [addMode, setAddMode] = useState<'expense' | 'income'>('expense');
+  const [composerInitialDate, setComposerInitialDate] = useState<Date | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   function goToPage(page: number) {
     pagerRef.current?.setPage(page);
   }
 
-  function openComposer(mode: 'expense' | 'income') {
+  function openComposer(mode: 'expense' | 'income', initialDate?: Date) {
     setAddMode(mode);
+    setComposerInitialDate(initialDate ? new Date(initialDate) : new Date());
     goToPage(2);
   }
 
@@ -57,7 +61,7 @@ export default function MainPager() {
           collapsable={false}
         >
           <HomeScreen
-            onAddExpense={() => openComposer('expense')}
+            onAddExpense={(date) => openComposer('expense', date)}
             onOpenSettings={() => setSettingsVisible(true)}
           />
         </View>
@@ -77,11 +81,13 @@ export default function MainPager() {
         >
           {addMode === 'expense' ? (
             <AddExpenseScreen
+              initialDate={composerInitialDate}
               onSwitchIncome={() => setAddMode('income')}
               onOpenSettings={() => setSettingsVisible(true)}
             />
           ) : (
             <AddIncomeScreen
+              initialDate={composerInitialDate}
               onSwitchExpense={() => setAddMode('expense')}
               onOpenSettings={() => setSettingsVisible(true)}
             />
@@ -110,7 +116,15 @@ export default function MainPager() {
 
       <AppStatusBanners />
 
-      <View style={styles.tabBar}>
+      <View
+        style={[
+          styles.tabBar,
+          {
+            paddingBottom: Math.max(9, insets.bottom),
+            minHeight: 72 + Math.max(0, insets.bottom - 9),
+          },
+        ]}
+      >
         <Pressable
           style={styles.tab}
           onPress={() =>
@@ -138,7 +152,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Resumen
+            {t('summary')}
           </Text>
         </Pressable>
 
@@ -169,7 +183,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Movimientos
+            {t('transactions')}
           </Text>
         </Pressable>
 
@@ -196,7 +210,7 @@ export default function MainPager() {
                 styles.addLabelActive,
             ]}
           >
-            Añadir
+            {t('add')}
           </Text>
         </View>
 
@@ -227,7 +241,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Planificación
+            {t('planning')}
           </Text>
         </Pressable>
 
@@ -258,7 +272,7 @@ export default function MainPager() {
                 styles.tabLabelActive,
             ]}
           >
-            Categorías
+            {t('categories')}
           </Text>
         </Pressable>
       </View>

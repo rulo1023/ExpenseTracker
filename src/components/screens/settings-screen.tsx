@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CurrencyPickerModal from '../currency-picker-modal';
 import {
   CurrencyCode,
-  currencyInfo,
+  currencyName,
   useAppSettings,
 } from '../../context/app-settings-context';
 import { useAuth } from '../../context/auth-context';
@@ -22,6 +22,7 @@ import { useFeedback } from '../../context/feedback-context';
 import { useConnectivity } from '../../context/connectivity-context';
 import { E5Status, useE5Model } from '../../context/e5-model-context';
 import { useAppStyles } from '../../lib/themed-styles';
+import { LANGUAGE_OPTIONS, TranslationKey } from '../../lib/i18n';
 
 type SettingsScreenProps = {
   onClose?: () => void;
@@ -29,13 +30,17 @@ type SettingsScreenProps = {
 
 type CurrencyPickerMode = 'input' | 'display' | null;
 
-function e5Description(status: E5Status, progress: number) {
-  if (status === 'ready') return 'Modelo cargado y listo para clasificar';
-  if (status === 'error') return 'No disponible · se está usando la heurística';
-  if (status === 'expo-go') return 'Disponible en la aplicación instalada';
-  if (status === 'downloading') return `Descargando el modelo en el dispositivo · ${Math.round(progress * 100)}%`;
-  if (status === 'loading') return 'Descarga completa · iniciando el modelo…';
-  return 'Comprobando el modelo local…';
+function e5Description(
+  status: E5Status,
+  progress: number,
+  t: (key: TranslationKey) => string
+) {
+  if (status === 'ready') return t('engineReady');
+  if (status === 'error') return t('engineFallback');
+  if (status === 'expo-go') return t('engineInstalled');
+  if (status === 'downloading') return `${t('engineDownloading')} · ${Math.round(progress * 100)}%`;
+  if (status === 'loading') return t('engineStarting');
+  return t('engineChecking');
 }
 
 function e5Colors(status: E5Status) {
@@ -64,10 +69,17 @@ export default function SettingsScreen({
     inputCurrency,
     displayCurrency,
     themeMode,
+    languagePreference,
+    language,
+    locale,
+    plannedExecutionMode,
     rateStatus,
     setInputCurrency,
     setDisplayCurrency,
     setThemeMode,
+    setLanguagePreference,
+    setPlannedExecutionMode,
+    t,
     refreshRates,
     getRate,
   } = useAppSettings();
@@ -86,7 +98,7 @@ export default function SettingsScreen({
       await signOut();
     } catch (error) {
       console.error('Error signing out:', error);
-      showFeedback('No se pudo cerrar la sesión.', 'error');
+      showFeedback(t('signOutError'), 'error');
       setSigningOut(false);
     }
   }
@@ -95,8 +107,8 @@ export default function SettingsScreen({
     const updated = await refreshRates([inputCurrency], true);
     showFeedback(
       updated
-        ? 'Tipo de cambio actualizado'
-        : 'No se pudo actualizar el cambio',
+        ? t('rateUpdated')
+        : t('rateUpdateError'),
       updated ? 'info' : 'error'
     );
   }
@@ -115,37 +127,37 @@ export default function SettingsScreen({
       >
         <View style={styles.header}>
           {onClose && (
-            <TouchableOpacity accessibilityLabel="Volver" style={styles.closeButton} onPress={onClose}>
+            <TouchableOpacity accessibilityLabel={t('back')} style={styles.closeButton} onPress={onClose}>
               <Ionicons name="arrow-back" size={22} color="#374151" />
             </TouchableOpacity>
           )}
-          <Text style={styles.title}>Ajustes</Text>
+          <Text style={styles.title}>{t('settings')}</Text>
         </View>
         <Text style={styles.subtitle}>
-          Tu cuenta y preferencias de ExpenseTracker.
+          {t('settingsSubtitle')}
         </Text>
 
-        <Text style={styles.sectionTitle}>Cuenta</Text>
+        <Text style={styles.sectionTitle}>{t('account')}</Text>
         <View style={styles.card}>
           <SettingRow
             styles={styles}
             icon="person-outline"
             iconColor="#4F46E5"
             iconBackground="#EEF2FF"
-            title="Sesión iniciada"
+            title={t('signedIn')}
             value={user?.email ?? 'Cuenta de ExpenseTracker'}
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Divisas</Text>
+        <Text style={styles.sectionTitle}>{t('currencies')}</Text>
         <View style={styles.card}>
           <SettingRow
             styles={styles}
             icon="wallet-outline"
             iconColor="#047857"
             iconBackground="#ECFDF5"
-            title="Moneda de entrada"
-            value={`${currencyInfo(inputCurrency).name} (${inputCurrency}) · gastos nuevos`}
+            title={t('inputCurrency')}
+            value={`${currencyName(inputCurrency, language)} (${inputCurrency})`}
             onPress={() => setCurrencyPicker('input')}
           />
           <View style={styles.divider} />
@@ -154,8 +166,8 @@ export default function SettingsScreen({
             icon="swap-horizontal-outline"
             iconColor="#0369A1"
             iconBackground="#E0F2FE"
-            title="Moneda mostrada"
-            value={`${currencyInfo(displayCurrency).name} (${displayCurrency}) · resúmenes y listados`}
+            title={t('displayedCurrency')}
+            value={`${currencyName(displayCurrency, language)} (${displayCurrency})`}
             onPress={() => setCurrencyPicker('display')}
           />
           <View style={styles.divider} />
@@ -166,20 +178,20 @@ export default function SettingsScreen({
             disabled={rateStatus === 'loading'}
           >
             <View style={styles.rateText}>
-              <Text style={styles.rowTitle}>Tipo de cambio</Text>
+              <Text style={styles.rowTitle}>{t('exchangeRate')}</Text>
               <Text style={styles.rowValue}>
                 {inputCurrency === displayCurrency
                   ? `1 ${inputCurrency} = 1 ${displayCurrency}`
                   : currentRate
-                    ? `1 ${inputCurrency} = ${currentRate.rate.toLocaleString('es-ES', {
+                    ? `1 ${inputCurrency} = ${currentRate.rate.toLocaleString(locale, {
                         maximumFractionDigits: 6,
                       })} ${displayCurrency} · ${currentRate.date}`
                     : rateStatus === 'error'
-                      ? 'Sin conexión · se mantendrá el último cambio disponible'
-                      : 'Obteniendo la cotización más reciente…'}
+                      ? t('cachedRate')
+                      : t('latestRate')}
               </Text>
               <Text style={styles.rateProvider}>
-                Referencia diaria de Frankfurter · toca para actualizar
+                {t('rateReference')}
               </Text>
             </View>
             {rateStatus === 'loading' ? (
@@ -190,33 +202,69 @@ export default function SettingsScreen({
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Apariencia</Text>
+        <Text style={styles.sectionTitle}>{t('appearance')}</Text>
         <View style={styles.themeControl}>
           <ThemeOption
             styles={styles}
-            label="Claro"
+            label={t('light')}
             icon="sunny-outline"
             selected={themeMode === 'light'}
             onPress={() => setThemeMode('light')}
           />
           <ThemeOption
             styles={styles}
-            label="Oscuro"
+            label={t('dark')}
             icon="moon-outline"
             selected={themeMode === 'dark'}
             onPress={() => setThemeMode('dark')}
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Categorización</Text>
+        <Text style={styles.sectionTitle}>{t('language')}</Text>
+        <View style={styles.languageControl}>
+          {LANGUAGE_OPTIONS.map((option) => (
+            <LanguageOption
+              key={option.value}
+              styles={styles}
+              label={option.value === 'system' ? t('systemLanguage') : option.label}
+              selected={languagePreference === option.value}
+              onPress={() => setLanguagePreference(option.value)}
+            />
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>{t('plannedMovements')}</Text>
+        <View style={styles.themeControl}>
+          <ThemeOption
+            styles={styles}
+            label={t('automatic')}
+            icon="flash-outline"
+            selected={plannedExecutionMode === 'automatic'}
+            onPress={() => setPlannedExecutionMode('automatic')}
+          />
+          <ThemeOption
+            styles={styles}
+            label={t('manual')}
+            icon="hand-left-outline"
+            selected={plannedExecutionMode === 'manual'}
+            onPress={() => setPlannedExecutionMode('manual')}
+          />
+        </View>
+        <Text style={styles.preferenceHint}>
+          {plannedExecutionMode === 'automatic'
+            ? t('automaticDescription')
+            : t('manualDescription')}
+        </Text>
+
+        <Text style={styles.sectionTitle}>{t('categorization')}</Text>
         <View style={styles.card}>
           <SettingRow
             styles={styles}
             icon={e5Status === 'ready' ? 'checkmark-circle' : 'sparkles-outline'}
             iconColor={modelColors.color}
             iconBackground={modelColors.background}
-            title="Motor inteligente"
-            value={e5Description(e5Status, e5Progress)}
+            title={t('intelligentEngine')}
+            value={e5Description(e5Status, e5Progress, t)}
             onPress={e5Status === 'error' ? retryE5 : undefined}
           />
           {e5Status === 'downloading' && (
@@ -230,24 +278,24 @@ export default function SettingsScreen({
             icon="shield-checkmark-outline"
             iconColor="#0369A1"
             iconBackground="#E0F2FE"
-            title="Privacidad"
-            value="Los conceptos no se envían a servicios de IA"
+            title={t('privacy')}
+            value={t('privacyDescription')}
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Información</Text>
+        <Text style={styles.sectionTitle}>{t('information')}</Text>
         <View style={styles.card}>
           <SettingRow
             styles={styles}
             icon={connectivityStatus === 'online' ? 'cloud-done-outline' : 'cloud-offline-outline'}
             iconColor={connectivityStatus === 'online' ? '#047857' : '#A16207'}
             iconBackground={connectivityStatus === 'online' ? '#DCFCE7' : '#FEF3C7'}
-            title="Conexión"
+            title={t('connection')}
             value={connectivityStatus === 'online'
-              ? 'Servicio conectado'
+              ? t('connected')
               : connectivityStatus === 'offline'
-                ? 'Sin conexión · toca para reintentar'
-                : 'Comprobando conexión…'}
+                ? t('offlineRetry')
+                : t('checkingConnection')}
             onPress={connectivityStatus === 'offline' ? retryConnectivity : undefined}
           />
           <View style={styles.divider} />
@@ -256,7 +304,7 @@ export default function SettingsScreen({
             icon="information-circle-outline"
             iconColor="#4B5563"
             iconBackground="#F3F4F6"
-            title="Versión"
+            title={t('version')}
             value={Constants.expoConfig?.version ?? '1.0.0'}
           />
         </View>
@@ -277,7 +325,7 @@ export default function SettingsScreen({
             <Ionicons name="log-out-outline" size={21} color="#DC2626" />
           )}
           <Text style={styles.logoutText}>
-            {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+            {signingOut ? t('signingOut') : t('signOut')}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -286,8 +334,8 @@ export default function SettingsScreen({
         visible={currencyPicker !== null}
         title={
           currencyPicker === 'input'
-            ? 'Moneda de entrada'
-            : 'Moneda mostrada'
+            ? t('inputCurrency')
+            : t('displayedCurrency')
         }
         selected={
           currencyPicker === 'input' ? inputCurrency : displayCurrency
@@ -373,6 +421,34 @@ function ThemeOption({
   );
 }
 
+function LanguageOption({
+  styles,
+  label,
+  selected,
+  onPress,
+}: {
+  styles: typeof lightStyles;
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.languageOption, selected && styles.themeOptionSelected]}
+      onPress={onPress}
+    >
+      <Text style={[styles.languageText, selected && styles.themeTextSelected]}>
+        {label}
+      </Text>
+      <Ionicons
+        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+        size={19}
+        color={selected ? '#4F46E5' : '#9CA3AF'}
+      />
+    </TouchableOpacity>
+  );
+}
+
 const lightStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   content: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 32 },
@@ -417,6 +493,13 @@ const lightStyles = StyleSheet.create({
   rateText: { flex: 1 },
   rateProvider: { marginTop: 5, fontSize: 11, color: '#9CA3AF' },
   themeControl: { flexDirection: 'row', gap: 10 },
+  languageControl: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  languageOption: {
+    width: '48%', minHeight: 52, paddingHorizontal: 14, borderRadius: 15,
+    borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  languageText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#4B5563' },
   themeOption: {
     flex: 1,
     minHeight: 58,
@@ -432,6 +515,7 @@ const lightStyles = StyleSheet.create({
   themeOptionSelected: { borderColor: '#818CF8', backgroundColor: '#EEF2FF' },
   themeText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#4B5563' },
   themeTextSelected: { color: '#4F46E5' },
+  preferenceHint: { marginTop: 9, fontSize: 12, lineHeight: 17, color: '#6B7280' },
   spacer: { flex: 1, minHeight: 42 },
   logoutButton: {
     minHeight: 54,

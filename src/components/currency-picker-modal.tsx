@@ -12,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CURRENCIES,
   CurrencyCode,
+  currencyName,
+  useAppSettings,
 } from '../context/app-settings-context';
 import { useAppStyles } from '../lib/themed-styles';
 
@@ -25,12 +27,13 @@ type CurrencyPickerModalProps = {
 
 export default function CurrencyPickerModal({
   visible,
-  title = 'Elegir divisa',
+  title,
   selected,
   onSelect,
   onClose,
 }: CurrencyPickerModalProps) {
   const styles = useAppStyles(lightStyles);
+  const { language, t } = useAppSettings();
 
   return (
     <Modal
@@ -42,8 +45,8 @@ export default function CurrencyPickerModal({
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>Elige una divisa habitual.</Text>
+            <Text style={styles.title}>{title ?? t('chooseCurrency')}</Text>
+            <Text style={styles.subtitle}>{t('commonCurrency')}</Text>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Ionicons name="close" size={22} color="#6B7280" />
@@ -67,7 +70,7 @@ export default function CurrencyPickerModal({
                   <Text style={styles.symbol}>{currency.symbol}</Text>
                 </View>
                 <View style={styles.currencyText}>
-                  <Text style={styles.currencyName}>{currency.name}</Text>
+                  <Text style={styles.currencyName}>{currencyName(currency.code, language)}</Text>
                   <Text style={styles.currencyCode}>{currency.code}</Text>
                 </View>
                 <Ionicons

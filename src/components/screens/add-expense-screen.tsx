@@ -57,8 +57,8 @@ function isFuture(date: Date) {
   );
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', {
+function formatDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -66,9 +66,11 @@ function formatDate(date: Date) {
 }
 
 export default function AddExpenseScreen({
+  initialDate,
   onSwitchIncome,
   onOpenSettings,
 }: {
+  initialDate?: Date | null;
   onSwitchIncome?: () => void;
   onOpenSettings: () => void;
 }) {
@@ -77,7 +79,7 @@ export default function AddExpenseScreen({
   const { categories, getCategoryById } =
     useCategories();
   const { showFeedback } = useFeedback();
-  const { inputCurrency } = useAppSettings();
+  const { inputCurrency, locale, t } = useAppSettings();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -118,6 +120,13 @@ export default function AddExpenseScreen({
   useEffect(() => {
     setExpenseCurrency(inputCurrency);
   }, [inputCurrency]);
+
+  useEffect(() => {
+    if (initialDate) {
+      setTransactionDate(new Date(initialDate));
+      setShowDatePicker(false);
+    }
+  }, [initialDate]);
 
   useEffect(() => {
     const sequence = ++classificationSequence.current;
@@ -201,7 +210,7 @@ export default function AddExpenseScreen({
       parsedAmount <= 0
     ) {
       showFeedback(
-        'Introduce un importe válido.',
+        t('invalidAmount'),
         'error'
       );
       amountInputRef.current?.focus();
@@ -210,7 +219,7 @@ export default function AddExpenseScreen({
 
     if (!categoryId) {
       showFeedback(
-        'Selecciona una categoría.',
+        t('selectCategory'),
         'error'
       );
       return;
@@ -239,13 +248,13 @@ export default function AddExpenseScreen({
 
       showFeedback(
         planned
-          ? 'Gasto previsto guardado'
-          : 'Gasto añadido'
+          ? t('plannedExpenseSaved')
+          : t('expenseSaved')
       );
     } catch (error) {
       console.error('Error saving expense:', error);
       showFeedback(
-        'No se pudo guardar el gasto.',
+        t('expenseSaveError'),
         'error'
       );
     } finally {
@@ -276,30 +285,30 @@ export default function AddExpenseScreen({
             {onSwitchIncome && (
               <View style={styles.modeRow}>
                 <View style={styles.modeActive}>
-                  <Text style={styles.modeActiveText}>Gasto</Text>
+                  <Text style={styles.modeActiveText}>{t('expense')}</Text>
                 </View>
                 <TouchableOpacity style={styles.modeInactive} onPress={onSwitchIncome}>
-                  <Text style={styles.modeInactiveText}>Ingreso</Text>
+                  <Text style={styles.modeInactiveText}>{t('income')}</Text>
                 </TouchableOpacity>
               </View>
             )}
             <SettingsButton onPress={onOpenSettings} />
           </View>
-          <Text style={styles.title}>Nuevo gasto</Text>
+          <Text style={styles.title}>{t('newExpense')}</Text>
 
           <Text style={styles.subtitle}>
-            Añádelo en unos pocos pasos.
+            {t('addFewSteps')}
           </Text>
 
           <View style={styles.fieldsRow}>
             <View style={styles.conceptField}>
-              <Text style={styles.label}>Concepto</Text>
+              <Text style={styles.label}>{t('concept')}</Text>
 
               <TextInput
                 style={styles.input}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Café, compra…"
+                placeholder={t('conceptPlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 returnKeyType="next"
                 blurOnSubmit={false}
@@ -310,7 +319,7 @@ export default function AddExpenseScreen({
             </View>
 
             <View style={styles.amountField}>
-              <Text style={styles.label}>Importe</Text>
+              <Text style={styles.label}>{t('amount')}</Text>
 
               <View style={styles.amountInputContainer}>
                 <TouchableOpacity
@@ -343,7 +352,7 @@ export default function AddExpenseScreen({
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Fecha</Text>
+          <Text style={styles.sectionLabel}>{t('date')}</Text>
 
           <View style={styles.dateOptions}>
             <TouchableOpacity
@@ -362,7 +371,7 @@ export default function AddExpenseScreen({
                     styles.dateOptionTextActive,
                 ]}
               >
-                Hoy
+                {t('today')}
               </Text>
             </TouchableOpacity>
 
@@ -382,7 +391,7 @@ export default function AddExpenseScreen({
                     styles.dateOptionTextActive,
                 ]}
               >
-                Ayer
+                {t('yesterday')}
               </Text>
             </TouchableOpacity>
 
@@ -404,8 +413,8 @@ export default function AddExpenseScreen({
                 numberOfLines={1}
               >
                 {dateMode === 'other'
-                  ? formatDate(transactionDate)
-                  : 'Otro día'}
+                  ? formatDate(transactionDate, locale)
+                  : t('anotherDay')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -433,18 +442,18 @@ export default function AddExpenseScreen({
 
               <View style={styles.plannedTextContainer}>
                 <Text style={styles.plannedTitle}>
-                  Gasto previsto
+                  {t('plannedExpense')}
                 </Text>
 
                 <Text style={styles.plannedText}>
-                  Se guardará como pendiente hasta esa fecha.
+                  {t('plannedPending')}
                 </Text>
               </View>
             </View>
           )}
 
           <View style={styles.categoryHeading}>
-            <Text style={styles.sectionLabel}>Categoría</Text>
+            <Text style={styles.sectionLabel}>{t('category')}</Text>
 
             {classifying && (
               <View style={styles.classifying}>
@@ -453,7 +462,7 @@ export default function AddExpenseScreen({
                   color="#6366F1"
                 />
                 <Text style={styles.classifyingText}>
-                  Buscando…
+                  {t('searching')}
                 </Text>
               </View>
             )}
@@ -486,7 +495,7 @@ export default function AddExpenseScreen({
 
               <View style={styles.selectedCategoryText}>
                 <Text style={styles.selectedCategoryLabel}>
-                  Seleccionada
+                  {t('selected')}
                 </Text>
                 <Text style={styles.selectedCategoryName}>
                   {selectedCategory.name}
@@ -496,7 +505,7 @@ export default function AddExpenseScreen({
               <TouchableOpacity
                 onPress={() => setCategoryPickerVisible(true)}
               >
-                <Text style={styles.changeCategory}>Cambiar</Text>
+                <Text style={styles.changeCategory}>{t('change')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -511,7 +520,7 @@ export default function AddExpenseScreen({
                     color="#4F46E5"
                   />
                   <Text style={styles.suggestionsTitle}>
-                    Sugeridas
+                    {t('suggested')}
                   </Text>
                 </View>
 
@@ -597,8 +606,8 @@ export default function AddExpenseScreen({
 
             <Text style={styles.allCategoriesText}>
               {selectedCategory
-                ? 'Ver todas las categorías'
-                : 'Elegir categoría'}
+                ? t('viewAllCategories')
+                : t('chooseCategory')}
             </Text>
 
             <Ionicons
@@ -631,8 +640,8 @@ export default function AddExpenseScreen({
                   />
                   <Text style={styles.saveButtonText}>
                     {planned
-                      ? 'Guardar gasto previsto'
-                      : 'Guardar gasto'}
+                      ? t('savePlannedExpense')
+                      : t('saveExpense')}
                   </Text>
                 </>
               )}
@@ -650,7 +659,7 @@ export default function AddExpenseScreen({
 
       <CurrencyPickerModal
         visible={currencyPickerVisible}
-        title="Divisa del gasto"
+        title={t('expenseCurrency')}
         selected={expenseCurrency}
         onSelect={setExpenseCurrency}
         onClose={() => setCurrencyPickerVisible(false)}
@@ -731,11 +740,11 @@ const lightStyles = StyleSheet.create({
   },
 
   conceptField: {
-    flex: 1.55,
+    flex: 1.35,
   },
 
   amountField: {
-    flex: 1,
+    flex: 1.15,
   },
 
   label: {
@@ -758,7 +767,7 @@ const lightStyles = StyleSheet.create({
 
   amountInputContainer: {
     height: 58,
-    paddingHorizontal: 13,
+    paddingHorizontal: 9,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -768,16 +777,16 @@ const lightStyles = StyleSheet.create({
   },
 
   currencySymbol: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#6B7280',
   },
 
   currencyButton: {
-    minWidth: 43,
+    minWidth: 36,
     minHeight: 40,
-    marginRight: 4,
-    paddingHorizontal: 3,
+    marginRight: 2,
+    paddingHorizontal: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -788,7 +797,7 @@ const lightStyles = StyleSheet.create({
     flex: 1,
     height: '100%',
     minWidth: 0,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#111827',
   },

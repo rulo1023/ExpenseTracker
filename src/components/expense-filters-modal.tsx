@@ -63,47 +63,47 @@ type ExpenseFiltersModalProps = {
 };
 
 const statusOptions: {
-  label: string;
+  labelKey: 'all' | 'completed' | 'planned';
   value: ExpenseStatusFilter;
 }[] = [
-  { label: 'Todos', value: 'all' },
-  { label: 'Realizados', value: 'completed' },
-  { label: 'Previstos', value: 'planned' },
+  { labelKey: 'all', value: 'all' },
+  { labelKey: 'completed', value: 'completed' },
+  { labelKey: 'planned', value: 'planned' },
 ];
 
 const sourceOptions: {
-  label: string;
+  labelKey: 'all' | 'manualSource' | 'textSource' | 'voiceSource' | 'recurring';
   value: ExpenseSourceFilter;
 }[] = [
-  { label: 'Todos', value: 'all' },
-  { label: 'Manual', value: 'manual' },
-  { label: 'Texto', value: 'text' },
-  { label: 'Voz', value: 'voice' },
-  { label: 'Recurrente', value: 'recurring' },
+  { labelKey: 'all', value: 'all' },
+  { labelKey: 'manualSource', value: 'manual' },
+  { labelKey: 'textSource', value: 'text' },
+  { labelKey: 'voiceSource', value: 'voice' },
+  { labelKey: 'recurring', value: 'recurring' },
 ];
 
 const sortOptions: {
-  label: string;
+  labelKey: 'newest' | 'oldest' | 'highest' | 'lowest';
   icon: keyof typeof Ionicons.glyphMap;
   value: ExpenseSort;
 }[] = [
   {
-    label: 'Más reciente',
+    labelKey: 'newest',
     icon: 'arrow-down-outline',
     value: 'recent',
   },
   {
-    label: 'Más antiguo',
+    labelKey: 'oldest',
     icon: 'arrow-up-outline',
     value: 'oldest',
   },
   {
-    label: 'Mayor importe',
+    labelKey: 'highest',
     icon: 'trending-down-outline',
     value: 'highest',
   },
   {
-    label: 'Menor importe',
+    labelKey: 'lowest',
     icon: 'trending-up-outline',
     value: 'lowest',
   },
@@ -130,7 +130,7 @@ export default function ExpenseFiltersModal({
 }: ExpenseFiltersModalProps) {
   const styles = useAppStyles(lightStyles);
   const { categories } = useCategories();
-  const { displayCurrency } = useAppSettings();
+  const { displayCurrency, t } = useAppSettings();
   const [draft, setDraft] =
     useState<ExpenseFilters>(filters);
   const [categoryPickerVisible, setCategoryPickerVisible] =
@@ -166,9 +166,9 @@ export default function ExpenseFiltersModal({
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Filtrar gastos</Text>
+            <Text style={styles.title}>{t('filterExpenses')}</Text>
             <Text style={styles.subtitle}>
-              Combina los criterios que necesites.
+              {t('combineCriteria')}
             </Text>
           </View>
 
@@ -184,7 +184,7 @@ export default function ExpenseFiltersModal({
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.sectionTitle}>Categoría</Text>
+          <Text style={styles.sectionTitle}>{t('category')}</Text>
           <TouchableOpacity
             activeOpacity={0.75}
             style={styles.categorySelector}
@@ -213,10 +213,10 @@ export default function ExpenseFiltersModal({
 
             <View style={styles.categorySelectorText}>
               <Text style={styles.categorySelectorLabel}>
-                {selectedCategory?.name ?? 'Todas las categorías'}
+                {selectedCategory?.name ?? t('allCategories')}
               </Text>
               <Text style={styles.categorySelectorHint}>
-                Toca para cambiar
+                {t('tapToChange')}
               </Text>
             </View>
 
@@ -227,7 +227,7 @@ export default function ExpenseFiltersModal({
             />
           </TouchableOpacity>
 
-          <Text style={styles.sectionTitle}>Estado</Text>
+          <Text style={styles.sectionTitle}>{t('status')}</Text>
           <View style={styles.segmentedControl}>
             {statusOptions.map((option) => {
               const selected = draft.status === option.value;
@@ -249,29 +249,29 @@ export default function ExpenseFiltersModal({
                       selected && styles.segmentTextSelected,
                     ]}
                   >
-                    {option.label}
+                    {t(option.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <Text style={styles.sectionTitle}>Origen</Text>
+          <Text style={styles.sectionTitle}>{t('origin')}</Text>
           <View style={styles.chips}>
             {sourceOptions.map((option) => (
               <FilterChip
                 key={option.value}
-                label={option.label}
+                label={t(option.labelKey)}
                 selected={draft.source === option.value}
                 onPress={() => updateDraft('source', option.value)}
               />
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Importe</Text>
+          <Text style={styles.sectionTitle}>{t('amount')}</Text>
           <View style={styles.amountRow}>
             <View style={styles.amountField}>
-              <Text style={styles.fieldLabel}>Mínimo</Text>
+              <Text style={styles.fieldLabel}>{t('minAmount')}</Text>
               <View style={styles.amountInputBox}>
                 <TextInput
                   style={styles.amountInput}
@@ -291,7 +291,7 @@ export default function ExpenseFiltersModal({
             </View>
 
             <View style={styles.amountField}>
-              <Text style={styles.fieldLabel}>Máximo</Text>
+              <Text style={styles.fieldLabel}>{t('maxAmount')}</Text>
               <View style={styles.amountInputBox}>
                 <TextInput
                   style={styles.amountInput}
@@ -299,7 +299,7 @@ export default function ExpenseFiltersModal({
                   onChangeText={(value) =>
                     updateDraft('maxAmount', value)
                   }
-                  placeholder="Sin límite"
+                  placeholder={t('noLimit')}
                   placeholderTextColor="#9CA3AF"
                   keyboardType="decimal-pad"
                   inputMode="decimal"
@@ -311,7 +311,7 @@ export default function ExpenseFiltersModal({
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Ordenar por</Text>
+          <Text style={styles.sectionTitle}>{t('sortBy')}</Text>
           <View style={styles.sortGrid}>
             {sortOptions.map((option) => {
               const selected = draft.sort === option.value;
@@ -336,7 +336,7 @@ export default function ExpenseFiltersModal({
                       selected && styles.sortTextSelected,
                     ]}
                   >
-                    {option.label}
+                    {t(option.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -349,7 +349,7 @@ export default function ExpenseFiltersModal({
             style={styles.resetButton}
             onPress={() => setDraft(defaultExpenseFilters)}
           >
-            <Text style={styles.resetButtonText}>Limpiar</Text>
+            <Text style={styles.resetButtonText}>{t('clearFilters')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -359,14 +359,14 @@ export default function ExpenseFiltersModal({
               onClose();
             }}
           >
-            <Text style={styles.applyButtonText}>Ver resultados</Text>
+            <Text style={styles.applyButtonText}>{t('viewResults')}</Text>
           </TouchableOpacity>
         </View>
 
         <CategoryPickerModal
           visible={categoryPickerVisible}
           selectedCategoryId={draft.categoryId}
-          title="Filtrar por categoría"
+          title={t('filterByCategory')}
           allowClear
           onClear={() => updateDraft('categoryId', null)}
           onSelect={(categoryId) =>

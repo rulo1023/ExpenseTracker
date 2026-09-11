@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useConnectivity } from '../context/connectivity-context';
+import { useAppSettings } from '../context/app-settings-context';
 import { useE5Model } from '../context/e5-model-context';
 import { useAppStyles } from '../lib/themed-styles';
 
@@ -12,6 +14,8 @@ function formatSize(bytes: number) {
 
 export default function AppStatusBanners() {
   const styles = useAppStyles(lightStyles);
+  const insets = useSafeAreaInsets();
+  const { t } = useAppSettings();
   const connectivity = useConnectivity();
   const model = useE5Model();
   const showModel = ['checking', 'downloading', 'loading', 'error'].includes(model.status);
@@ -21,13 +25,16 @@ export default function AppStatusBanners() {
   const percentage = Math.round(model.progress * 100);
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View
+      style={[styles.container, { bottom: 82 + insets.bottom }]}
+      pointerEvents="box-none"
+    >
       {connectivity.status === 'offline' && (
         <Pressable style={[styles.banner, styles.offline]} onPress={connectivity.retry}>
           <Ionicons name="cloud-offline-outline" size={21} color="#92400E" />
           <View style={styles.textBlock}>
-            <Text style={styles.title}>Sin conexión</Text>
-            <Text style={styles.message}>Comprueba Internet y toca para reintentar.</Text>
+            <Text style={styles.title}>{t('offline')}</Text>
+            <Text style={styles.message}>{t('checkInternet')}</Text>
           </View>
           <Ionicons name="refresh" size={19} color="#92400E" />
         </Pressable>
@@ -47,17 +54,17 @@ export default function AppStatusBanners() {
           <View style={styles.textBlock}>
             <Text style={styles.title}>
               {model.status === 'error'
-                ? 'La categorización inteligente no pudo iniciarse'
+                ? t('categorizationStartError')
                 : model.status === 'downloading'
-                  ? `Descargando IA local · ${percentage}%`
-                  : 'Preparando IA local'}
+                  ? `${t('downloadingLocal')} · ${percentage}%`
+                  : t('preparingLocal')}
             </Text>
             <Text style={styles.message}>
               {model.status === 'error'
-                ? 'La categorización básica sigue activa. Toca para reintentar.'
+                ? t('basicCategorizationActive')
                 : model.status === 'downloading' && model.downloadedBytes > 0
                   ? `${formatSize(model.downloadedBytes)}${model.totalBytes > 0 ? ` de ${formatSize(model.totalBytes)}` : ''}`
-                  : 'Puedes seguir usando la aplicación.'}
+                  : t('keepUsingApp')}
             </Text>
             {model.status === 'downloading' && (
               <View style={styles.progressTrack}>

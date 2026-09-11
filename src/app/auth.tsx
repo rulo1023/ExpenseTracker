@@ -14,12 +14,14 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../context/auth-context';
+import { useAppSettings } from '../context/app-settings-context';
 import { supabase } from '../lib/supabase';
 import { useAppStyles } from '../lib/themed-styles';
 
 export default function AuthScreen() {
   const styles = useAppStyles(lightStyles);
   const { session } = useAuth();
+  const { t } = useAppSettings();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,8 +36,8 @@ export default function AuthScreen() {
   async function handleSignIn() {
     if (!email.trim() || !password) {
       Alert.alert(
-        'Datos incompletos',
-        'Introduce tu email y contraseña.'
+        t('incompleteData'),
+        t('enterCredentials')
       );
       return;
     }
@@ -62,16 +64,16 @@ export default function AuthScreen() {
   async function handleSignUp() {
     if (!email.trim() || !password) {
       Alert.alert(
-        'Datos incompletos',
-        'Introduce tu email y contraseña.'
+        t('incompleteData'),
+        t('enterCredentials')
       );
       return;
     }
 
     if (password.length < 6) {
       Alert.alert(
-        'Contraseña demasiado corta',
-        'Utiliza al menos 6 caracteres.'
+        t('shortPassword'),
+        t('sixCharacters')
       );
       return;
     }
@@ -94,8 +96,8 @@ export default function AuthScreen() {
 
       if (!data.session) {
         Alert.alert(
-          'Revisa tu correo',
-          'Te hemos enviado un email para confirmar tu cuenta.'
+          t('checkEmail'),
+          t('confirmEmail')
         );
       }
     } finally {
@@ -119,11 +121,11 @@ export default function AuthScreen() {
         <Text style={styles.title}>ExpenseTracker</Text>
 
         <Text style={styles.subtitle}>
-          Entiende tu dinero sin perder tiempo registrándolo.
+          {t('authSubtitle')}
         </Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('email')}</Text>
 
           <TextInput
             style={styles.input}
@@ -138,7 +140,7 @@ export default function AuthScreen() {
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
 
-          <Text style={styles.label}>Contraseña</Text>
+          <Text style={styles.label}>{t('password')}</Text>
 
           <TextInput
             ref={passwordRef}
@@ -164,14 +166,14 @@ export default function AuthScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.primaryButtonText}>
-                Iniciar sesión
+                {t('signIn')}
               </Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.separator}>
             <View style={styles.line} />
-            <Text style={styles.separatorText}>o</Text>
+            <Text style={styles.separatorText}>{t('or')}</Text>
             <View style={styles.line} />
           </View>
 
@@ -181,7 +183,7 @@ export default function AuthScreen() {
             onPress={handleSignUp}
           >
             <Text style={styles.secondaryButtonText}>
-              Crear una cuenta
+              {t('createAccount')}
             </Text>
           </TouchableOpacity>
         </View>
